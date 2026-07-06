@@ -37,7 +37,7 @@ app.use(compression());
 /* Parsing */
 app.use(express.json());
 app.use(cookieParser());
-console.log("instance",express())
+console.log("instance", express());
 
 /* Rate Limiting */
 // app.use(limiter);
@@ -46,7 +46,7 @@ console.log("instance",express())
 app.use(cors());
 
 /* Health Check */
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
     status: "UP",
