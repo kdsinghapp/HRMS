@@ -19,7 +19,7 @@ export const login = async (req, res) => {
       "account.officialEmail": normalizedEmail,
     });
     if (!employeeDoc) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid credentials enter correct email and password" });
     }
 
     // 🔥 CHECK STATUS (OPTIONAL BUT GOOD)
