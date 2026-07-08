@@ -18,8 +18,8 @@ router.post("/apply/:jobId", applyForJob);
 /* ===== ADMIN ===== */
 router.get("/getAllApplications", authMiddleware, getAllApplications);
 router.get("/job/:jobId", authMiddleware, getApplicationsByJob);
-router.get("/:id", authMiddleware, getSingleApplication);
+router.get("/getApplication/:id", authMiddleware, getSingleApplication);
 router.patch("/updateStatus/:id/status", authMiddleware, updateApplicationStatus);
-router.delete("/:id", authMiddleware, deleteApplication);
+router.delete("/delete/:id", authMiddleware, deleteApplication);
 
 export default router;

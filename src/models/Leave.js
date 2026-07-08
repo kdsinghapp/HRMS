@@ -4,7 +4,7 @@ const leaveSchema = new mongoose.Schema(
   {
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee",
+      ref: "OldEmployee",
       required: true,
     },
 
@@ -44,7 +44,7 @@ const leaveSchema = new mongoose.Schema(
 
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee", // manager/admin
+      ref: "OldEmployee", // manager/admin
       default: null,
     },
 

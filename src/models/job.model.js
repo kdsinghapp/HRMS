@@ -75,13 +75,13 @@ const jobSchema = new mongoose.Schema(
   experienceMax: {
   type: Number,
   min: 0,
-  // validate: {
-  //   validator: function (value) {
-  //     if (value == null) return true;
-  //     return value >= this.experienceMin;
-  //   },
-  //   message: "experienceMax must be greater than experienceMin",
-  // },
+  validate: {
+    validator: function (value) {
+      if (value == null) return true;
+      return value >= this.experienceMin;
+    },
+    message: "experienceMax must be greater than experienceMin",
+  },
 },
 
     overview: {
@@ -127,13 +127,13 @@ const jobSchema = new mongoose.Schema(
   salaryMax: {
   type: Number,
   min: 0,
-  // validate: {
-  //   validator: function (value) {
-  //     if (value == null) return true;
-  //     return value >= this.salaryMin;
-  //   },
-  //   message: "salaryMax must be greater than salaryMin",
-  // },
+  validate: {
+    validator: function (value) {
+      if (value == null) return true;
+      return value >= this.salaryMin;
+    },
+    message: "salaryMax must be greater than salaryMin",
+  },
 },
 
     currency: {

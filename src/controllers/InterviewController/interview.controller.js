@@ -2,6 +2,7 @@ import Interview from "../../models/interview.model.js";
 import Visitor from "../../models/Visitor.js";
 import Employee from "../../models/employee.model.js";
 import OldEmployee from './../../models/oldEmployee.model.js';
+import applicationModel from "../../models/application.model.js";
 
 /* ================= ROUND ORDER ================= */
 const roundOrder = ["HR", "Technical", "Machine Coding", "Director", "Salary Discussion","Document Verification","Joining Form",];
@@ -32,55 +33,58 @@ export const scheduleInterview = async (req, res) => {
       });
     }
 
-    /* ================= COMBINE DATE + TIME ================= */
-  const [year, month, day] = interviewDate
-  .split("-")
-  .map(Number);
+    /* ================= DATE + TIME ================= */
 
-const [hours, minutes] = interviewTime
-  .split(":")
-  .map(Number);
+    const [year, month, day] = interviewDate.split("-").map(Number);
+    const [hours, minutes] = interviewTime.split(":").map(Number);
 
-/*
-User selects IST
-Convert IST -> UTC before saving
-IST = UTC + 5:30
-*/
-const scheduledDate = new Date(
-  Date.UTC(
-    year,
-    month - 1,
-    day,
-    hours - 5,
-    minutes - 30,
-    0
-  )
-);
+    const scheduledDate = new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day,
+        hours - 5,
+        minutes - 30,
+        0
+      )
+    );
 
     /* ================= PAST DATE CHECK ================= */
+
     if (scheduledDate < new Date()) {
       return res.status(400).json({
         message: "Cannot schedule interview in the past",
       });
     }
 
-    /* ================= SUNDAY BLOCK ================= */
-    if (scheduledDate.getDay() === 0) {
+    /* ================= SUNDAY CHECK ================= */
+
+    if (scheduledDate.getUTCDay() === 0) {
       return res.status(400).json({
         message: "Sunday scheduling not allowed",
       });
     }
 
-    /* ================= OFFICE TIMING CHECK ================= */
-    const hour = scheduledDate.getHours();
-    if (hour < 10 || hour >= 19) {
+    /* ================= OFFICE HOURS (IST) ================= */
+
+    const istHour = hours;
+
+    if (istHour < 10 || istHour >= 19) {
       return res.status(400).json({
         message: "Interview must be between 10 AM and 7 PM",
       });
     }
 
     /* ================= CANDIDATE CHECK ================= */
-    const candidate = await Visitor.findById(candidateId);
+
+    let candidate = await Visitor.findById(candidateId);
+    let candidateModel = "Visitor";
+
+    if (!candidate) {
+      candidate = await applicationModel.findById(candidateId);
+      candidateModel = "Application";
+    }
+
     if (!candidate) {
       return res.status(404).json({
         message: "Candidate not found",
@@ -88,16 +92,22 @@ const scheduledDate = new Date(
     }
 
     /* ================= INTERVIEWER CHECK ================= */
-    const interviewer = await Employee.findById(interviewerId) || await OldEmployee.findById(interviewerId);
+
+    const interviewer =
+      (await Employee.findById(interviewerId)) ||
+      (await OldEmployee.findById(interviewerId));
+
     if (!interviewer) {
       return res.status(404).json({
         message: "Invalid interviewer",
       });
     }
 
-    /* ================= PREVIOUS ROUND CHECK ================= */
+    /* ================= PREVIOUS ROUND ================= */
+
     const lastInterview = await Interview.findOne({
       candidate: candidateId,
+      candidateModel,
     }).sort({ createdAt: -1 });
 
     if (lastInterview) {
@@ -107,7 +117,9 @@ const scheduledDate = new Date(
         });
       }
 
-      if (!["hire", "strong_hire"].includes(lastInterview.recommendation)) {
+      if (
+        !["hire", "strong_hire"].includes(lastInterview.recommendation)
+      ) {
         return res.status(400).json({
           message: "Candidate not recommended for next round",
         });
@@ -135,29 +147,24 @@ const scheduledDate = new Date(
       }
     }
 
-    /* ================= CREATE INTERVIEW ================= */
-   const interview = await Interview.create({
-  candidate: candidateId,
-  roundType,
-  interviewer: interviewerId,
-  scheduledDate,
-  interviewTime
-});
-    // const interview = await Interview.create({
-    //   candidate: candidateId,
-    //   roundType,
-    //   interviewer: interviewerId,
-    //   scheduledDate,
-    // });
+    /* ================= CREATE ================= */
+
+    const interview = await Interview.create({
+      candidate: candidateId,
+      candidateModel,
+      roundType,
+      interviewer: interviewerId,
+      scheduledDate,
+    });
 
     return res.status(201).json({
       success: true,
       message: "Interview scheduled successfully",
       interview,
     });
-
   } catch (error) {
     console.error("Schedule Interview Error:", error);
+
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -246,7 +253,7 @@ export const getCandidateInterviews = async (req, res) => {
     const { candidateId } = req.params;
 
     const interviews = await Interview.find({ candidate: candidateId })
-      .populate("interviewer", "name email")
+      .populate("interviewer", "personal.fullName professional.employeeId")
       .sort({ createdAt: 1 });
 
     return res.json({
@@ -269,12 +276,25 @@ export const getInterviewerInterviews = async (req, res) => {
     const interviews = await Interview.find({
       interviewer: req.params.employeeId,
     })
-      .populate("candidate", "fullName technology currentStage")
-      .sort({ scheduledDate: 1 });
+      .populate({
+        path: "candidate",
+        select:
+          "fullName email phone technology totalExperience currentOrganization status",
+      })
+      .populate({
+        path: "interviewer",
+        select: "fullName",
+      });
 
-    res.json(interviews);
+    return res.status(200).json({
+      success: true,
+      interviews,
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
-import Employee from "../src/models/employee.js";
+import OldEmployee from "../src/models/oldEmployee.model.js";
 
 dotenv.config();
 
@@ -10,8 +10,8 @@ const seedAdmin = async () => {
     // connect DB
     await mongoose.connect(process.env.MONGO_URI);
 
-    const existingAdmin = await Employee.findOne({
-      email: "hr.company@gmail.com",
+    const existingAdmin = await OldEmployee.findOne({
+      "account.officialEmail": "hr@gmail.com",
     });
 
     if (existingAdmin) {
@@ -19,16 +19,21 @@ const seedAdmin = async () => {
       process.exit(0);
     }
 
-    const hashedPassword = await bcrypt.hash("Hr@#12345", 10);
+    const hashedPassword = await bcrypt.hash("123456", 10);
 
-    await Employee.create({
-      name: "System Admin",
-      email: "hr.company@gmail.com",
-      password: hashedPassword,
+    await OldEmployee.create({
+      personal: {
+        fullName: "System Admin",
+      },
+      professional: {
+        employeeId: "HR001",
+        status: "Active",
+      },
+      account: {
+        officialEmail: "hr@gmail.com",
+        loginPassword: hashedPassword,
+      },
       role: "hr",
-      status: "approved",
-      isActive: true,
-      emailVerified: true,
     });
 
     console.log("✅ Admin created successfully");

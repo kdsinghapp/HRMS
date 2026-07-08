@@ -19,12 +19,17 @@ const recommendationTypes = [
 
 const interviewSchema = new mongoose.Schema(
   {
-    candidate: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Visitor",
-      required: true,
-      index: true,
-    },
+   candidate: {
+  type: mongoose.Schema.Types.ObjectId,
+  required: true,
+  refPath: "candidateModel",
+},
+
+candidateModel: {
+  type: String,
+  required: true,
+  enum: ["Visitor", "Application"],
+},
 
     roundType: {
       type: String,
@@ -34,7 +39,7 @@ const interviewSchema = new mongoose.Schema(
 
     interviewer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Employee",
+      ref: "OldEmployee",
       required: true,
     },
 

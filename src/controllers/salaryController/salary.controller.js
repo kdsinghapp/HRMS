@@ -1,6 +1,7 @@
 import { ACTIONS, MODULES } from "../../constants/audit.js";
 import OldEmployee from "../../models/oldEmployee.model.js";
 import Salary from "../../models/salary.model.js";
+import salaryStructureSchema from "../../models/salaryStructureSchema.js";
 import SalaryStructure from "../../models/salaryStructureSchema.js";
 import { createAuditLog } from "../../services/audit.service.js";
 
@@ -27,7 +28,7 @@ export const createSalary = async (req, res) => {
     }
 
     // Salary Structure Check
-    const structure = await SalaryStructure.findOne({ employee });
+    const structure = await salaryStructureSchema.findOne({ employee });
 
     if (!structure) {
       return res.status(404).json({

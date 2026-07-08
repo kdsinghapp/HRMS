@@ -237,7 +237,7 @@ export const getSingleApplication = async (req, res) => {
     const application = await Application.findById(req.params.id).populate(
       "job",
     );
-
+console.log("Fetched application:", application); // Debugging log
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -284,3 +284,5 @@ export const deleteApplication = async (req, res) => {
     });
   }
 };
+
+

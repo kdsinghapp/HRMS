@@ -88,6 +88,18 @@ const professionalSchema = new Schema(
   { _id: false },
 );
 
+/* ================= IDENTIFICATION ================= */
+const identificationSchema = new Schema(
+  {
+    aadhaarNo: { type: String, trim: true },
+    pan: { type: String, trim: true, uppercase: true },
+    esic: { type: String, trim: true },
+    uan: { type: String, trim: true },
+    idNo: { type: String, trim: true },
+  },
+  { _id: false },
+);
+
 /* ================= ACCOUNT ================= */
 const accountSchema = new Schema(
   {
@@ -138,6 +150,8 @@ const employeeSchema = new Schema(
     address: addressSchema,
 
     professional: professionalSchema,
+
+    identification: identificationSchema,
 
     account: accountSchema,
 
