@@ -18,8 +18,7 @@ export const registerEmployee = async (req, res) => {
       emergencyNo,
     } = req.body;
 
-    console.log("Register Body: [redacted for security]");
-
+ 
     /* ================= Validation ================= */
     if (!name || !email || !password) {
       return res.status(400).json({

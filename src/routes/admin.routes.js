@@ -10,6 +10,7 @@ import {
   getAttendanceByEmployee,
   getAttendanceStats,
   getMonthlyAttendanceSummary,
+  updateAttendanceByEmpId,
 } from "../controllers/adminControllers/adminAttendance.controller.js";
 import {
   getAllEmployees,
@@ -94,7 +95,7 @@ router.get(
   getMonthlyAttendanceSummary,
 );
 
-/* =================  ATTENDANCE STATS  ================= */
+/* =================  ATTENDANCE STATS  ================= */ 
 router.get(
   "/attendance/Stats", //done
   authMiddleware,
@@ -102,6 +103,12 @@ router.get(
   getAttendanceStats,
 );
 
+router.put(
+  "/attendance/update/:employeeId", //done
+  authMiddleware,
+  isHrOrAdmin,
+  updateAttendanceByEmpId,
+);
 /* =================  get AdmiDashboard Charts ================= */
 router.get(
   "/adminDashboardCharts", //done

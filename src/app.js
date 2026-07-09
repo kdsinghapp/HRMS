@@ -37,7 +37,6 @@ app.use(compression());
 /* Parsing */
 app.use(express.json());
 app.use(cookieParser());
-console.log("instance", express());
 
 /* Rate Limiting */
 // app.use(limiter);

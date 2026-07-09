@@ -5,7 +5,8 @@ import {
   getAllEmployeeSalaryByMonthAndYear,
   getAllSalaryByEmployeeId,
   getMySalary,
-  getSalaryById,
+  getSalaryByEmployeeId,
+ getSalaryBySalaryId,
   updateSalary
 } from "../controllers/salaryController/salary.controller.js";
 import {
@@ -28,7 +29,8 @@ const router = express.Router();
 router.post("/create-Salary", authMiddleware, isHrOrAdmin, createSalary);
 router.get("/getAllSalary", authMiddleware, isHrOrAdmin, getAllSalaryByEmployeeId);
 router.get("/getAllEmployeeSalaryByMonthAndYear", authMiddleware, isHrOrAdmin, getAllEmployeeSalaryByMonthAndYear);
-router.get("/getSalaryById/:id", authMiddleware, isHrOrAdmin, getSalaryById);
+router.get("/getSalaryBySalaryId/:id", authMiddleware, isHrOrAdmin, getSalaryBySalaryId);
+router.get("/getSalaryByEmployeeId/:id", authMiddleware, isHrOrAdmin, getSalaryByEmployeeId);
 router.patch("/updateSalary/:id", authMiddleware, isHrOrAdmin, updateSalary);
 router.delete("/deleteSalary/:id", authMiddleware, isHrOrAdmin, deleteSalary);
 router.get("/getMySalary", authMiddleware, getMySalary);

@@ -167,9 +167,7 @@ export const createEmployee = async (req, res) => {
       req,
     });
 
-    console.log("Employee created:", employee._id);
-
-    res.status(201).json({
+   res.status(201).json({
       message: "Employee created successfully",
       data: employee,
     });
@@ -312,8 +310,7 @@ export const updateEmployee = async (req, res) => {
 
 // ==================== GET ALL EMPLOYEES (NEW + OLD) ====================
 export const getAllEmployees = async (req, res) => {
-  // console.log("Total employees fetched:");
-  try {
+ try {
     const newEmployees = await Employee.find().lean();
     const oldEmployees = await OldEmployee.find().lean();
 
@@ -356,8 +353,9 @@ export const getEmployees = async (req, res) => {
 
 // ==================== GET EMPLOYEE BY ID (NEW MODEL) ====================
 export const getEmployeeById = async (req, res) => {
+
   try {
-    const employee = await Employee.findById(req.params.id);
+    const employee = await OldEmployee.findById(req.params.id);
     if (!employee) return res.status(404).json({ message: "Employee not found" });
     res.json(employee);
   } catch (error) {

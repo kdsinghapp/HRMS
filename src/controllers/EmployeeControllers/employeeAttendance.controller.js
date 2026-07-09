@@ -1,6 +1,6 @@
 import Attendance from "../../models/Attendance.js";
 import OldEmployee from "../../models/oldEmployee.model.js";
-// import Employee from "../../models/employee.model.js";
+import { getISTDate } from "../../utils/DateFOrmate.js";
 import { isOfficeIP } from "../../utils/ip.utils.js";
 import mongoose from "mongoose";
 /* ================= CHECK-IN ================= */
@@ -8,55 +8,49 @@ export const checkIn = async (req, res) => {
   try {
     const employeeId = req.user.id;
 
-    // ✅ server time
-    const checkIn = new Date();
+    // Current server time (stored in UTC)
+    const checkInTime = new Date();
 
-    // ✅ normalize date (UTC day)
-    const date = new Date(Date.UTC(
-      checkIn.getUTCFullYear(),
-      checkIn.getUTCMonth(),
-      checkIn.getUTCDate()
-    ));
+    // Attendance date (IST)
+    const attendanceDate = getISTDate();
 
     let attendance = await Attendance.findOne({
       employee: employeeId,
-      date,
+      date: attendanceDate,
     });
 
-    // ❌ already checked-in
     if (attendance?.checkIn) {
       return res.status(400).json({
-        message: "Already checked in today",
+        success: false,
+        message: "Already checked in today.",
       });
     }
 
-    // ✅ create if not exists
     if (!attendance) {
       attendance = new Attendance({
         employee: employeeId,
-        date,
+        date: attendanceDate,
       });
     }
 
-    // ✅ set check-in
-    attendance.checkIn = checkIn;
+    attendance.checkIn = checkInTime;
     attendance.status = "present";
     attendance.source = "web";
 
     await attendance.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Check-in successful",
+      message: "Check-in successful.",
       data: attendance,
     });
 
   } catch (error) {
-    console.error("CHECK-IN ERROR 👉", error);
+    console.error("CHECK-IN ERROR:", error);
 
-    res.status(500).json({
-      message: "Check-in failed",
-      error: error.message,
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };
@@ -66,54 +60,67 @@ export const checkOut = async (req, res) => {
   try {
     const employeeId = req.user.id;
 
-    // ✅ server time (IST / system time)
-    const checkOut = new Date();
+    const checkOutTime = new Date();
 
-    // Find an active check-in record for this employee within the last 18 hours (prevents UTC day rollover bugs)
-    const threshold = new Date(Date.now() - 18 * 60 * 60 * 1000);
+    const attendanceDate = getISTDate();
+
     const attendance = await Attendance.findOne({
       employee: employeeId,
-      checkIn: { $gte: threshold },
-      checkOut: null,
+      date: attendanceDate,
     });
 
     if (!attendance) {
       return res.status(400).json({
-        message: "You have not checked in today",
+        success: false,
+        message: "You have not checked in today.",
+      });
+    }
+
+    if (!attendance.checkIn) {
+      return res.status(400).json({
+        success: false,
+        message: "Please check in first.",
       });
     }
 
     if (attendance.checkOut) {
       return res.status(400).json({
-        message: "Already checked out today",
+        success: false,
+        message: "Already checked out today.",
       });
     }
 
-    // ✅ set checkout time
-    attendance.checkOut = checkOut;
+    attendance.checkOut = checkOutTime;
 
-    // ✅ calculate hours
     const hours =
-      (attendance.checkOut - attendance.checkIn) / (1000 * 60 * 60);
+      (attendance.checkOut - attendance.checkIn) /
+      (1000 * 60 * 60);
 
     attendance.totalHours = Number(hours.toFixed(2));
 
-    // ✅ status logic
-    if (hours >= 8) attendance.status = "present";
-    else if (hours >= 4) attendance.status = "half-day";
-    else attendance.status = "absent";
+    if (hours >= 8) {
+      attendance.status = "present";
+    } else if (hours >= 4) {
+      attendance.status = "half-day";
+    } else {
+      attendance.status = "absent";
+    }
 
     await attendance.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Check-out successful",
+      message: "Check-out successful.",
       data: attendance,
     });
 
   } catch (error) {
-    console.error("CHECK-OUT ERROR 👉", error);
-    res.status(500).json({ message: "Check-out failed" });
+    console.error("CHECK-OUT ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -310,11 +317,9 @@ export const getTodayAttendance = async (req, res) => {
 
 
 export const getMonthlyAttendanceSummary = async (req, res) => {
-  // console.log("getMonthlyAttendanceSummary running");
-  try {
+ try {
     const { employeeId, month, year } = req.query;
-console.log("getMonthlyAttendanceSummary running");
-    // Normalize search bounds to UTC midnight to match DB storage timezone
+ // Normalize search bounds to UTC midnight to match DB storage timezone
     const startDate = new Date(Date.UTC(year, month - 1, 1));
     const endDate = new Date(Date.UTC(year, month, 1));
 

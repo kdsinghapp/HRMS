@@ -256,7 +256,7 @@ export const getAllEmployeeSalaryByMonthAndYear = async (req, res) => {
 };
 
 /* ================= GET BY ID ================= */
-export const getSalaryById = async (req, res) => {
+export const getSalaryBySalaryId = async (req, res) => {
   try {
     const salary = await Salary.findById(req.params.id)
       .populate("employee", "personal.fullName professional.employeeId");
@@ -274,6 +274,30 @@ export const getSalaryById = async (req, res) => {
       data: salary,
     });
 
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch salary",
+    });
+  }
+};
+export const getSalaryByEmployeeId = async (req, res) => {
+  try {
+    const salary = await Salary.findOne({ employee: req.params.id })
+      .populate("employee", "personal.fullName professional.employeeId");
+
+    if (!salary) {
+      return res.status(404).json({
+        success: false,
+        message: "Salary not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Salary fetched successfully",
+      data: salary,
+    });
   } catch (error) {
     return res.status(500).json({
       success: false,
