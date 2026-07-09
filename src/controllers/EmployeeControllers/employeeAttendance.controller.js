@@ -1,6 +1,6 @@
+import { getISTDate } from "../../helper/dateFormater.js";
 import Attendance from "../../models/Attendance.js";
 import OldEmployee from "../../models/oldEmployee.model.js";
-import { getISTDate } from "../../utils/DateFOrmate.js";
 import { isOfficeIP } from "../../utils/ip.utils.js";
 import mongoose from "mongoose";
 /* ================= CHECK-IN ================= */
