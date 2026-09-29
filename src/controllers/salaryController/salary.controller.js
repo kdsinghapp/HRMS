@@ -4,6 +4,7 @@ import Salary from "../../models/salary.model.js";
 import SalaryStructure from "../../models/salaryStructureSchema.js";
 import { createAuditLog } from "../../services/audit.service.js";
 import { notifyUser } from "../../services/notification.service.js";
+import { generateMonthlySalaryBatch } from "../../services/salaryAutoGeneration.service.js";
 
 /* ================= CREATE (OR UPDATE SAME MONTH) ================= */
 export const createSalary = async (req, res) => {
@@ -125,6 +126,10 @@ export const createSalary = async (req, res) => {
       esi,
       professionalTax,
       otherDeduction,
+
+      generationType: "MANUAL",
+      generatedBy: req.user?.id,
+      generatedAt: new Date(),
     };
 
     // ==========================
@@ -140,7 +145,10 @@ export const createSalary = async (req, res) => {
     if (existingSalary) {
       const oldData = existingSalary.toObject();
 
-      Object.assign(existingSalary, salaryPayload);
+      Object.assign(existingSalary, salaryPayload, {
+        isManuallyModified: true,
+        updatedBy: req.user?.id,
+      });
 
       await existingSalary.save();
 
@@ -361,7 +369,10 @@ export const updateSalary = async (req, res) => {
 
     const oldData = salary.toObject();
 
-    Object.assign(salary, req.body);
+    Object.assign(salary, req.body, {
+      isManuallyModified: true,
+      updatedBy: req.user?.id,
+    });
     await salary.save(); // pre-save triggers
 
     await createAuditLog({
@@ -462,6 +473,58 @@ export const getMySalary = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message,
+    });
+  }
+};
+
+/* ================= AUTO GENERATE MONTHLY SALARY BATCH ================= */
+export const autoGenerateMonthlySalary = async (req, res) => {
+  try {
+    let { month, year } = req.body;
+
+    const now = new Date();
+    if (!month) {
+      month = now.getMonth() + 1;
+    }
+    if (!year) {
+      year = now.getFullYear();
+    }
+
+    month = Number(month);
+    year = Number(year);
+
+    const result = await generateMonthlySalaryBatch({
+      month,
+      year,
+      triggeredBy: req.user?.id,
+    });
+
+    await createAuditLog({
+      user: req.user,
+      action: ACTIONS.CREATE,
+      module: MODULES.SALARY,
+      recordId: null,
+      newData: {
+        batch: "AUTO_SALARY_GENERATION",
+        month,
+        year,
+        createdCount: result.createdCount,
+        skippedCount: result.skippedCount,
+        failedCount: result.failedCount,
+      },
+      req,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Salary generation batch completed for ${month}/${year}. Created: ${result.createdCount}, Skipped: ${result.skippedCount}, Failed: ${result.failedCount}`,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Auto Salary Generation Controller Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to run automated salary batch",
     });
   }
 };

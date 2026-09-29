@@ -140,6 +140,33 @@ const salarySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+
+    // Metadata: Auto vs Manual tracking
+    generationType: {
+      type: String,
+      enum: ["MANUAL", "AUTO"],
+      default: "MANUAL",
+    },
+
+    isManuallyModified: {
+      type: Boolean,
+      default: false,
+    },
+
+    generatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+
+    generatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "OldEmployee",
+    },
+
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "OldEmployee",
+    },
   },
   {
     timestamps: true,

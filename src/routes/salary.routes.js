@@ -6,8 +6,9 @@ import {
   getAllSalaryByEmployeeId,
   getMySalary,
   getSalaryByEmployeeId,
- getSalaryBySalaryId,
-  updateSalary
+  getSalaryBySalaryId,
+  updateSalary,
+  autoGenerateMonthlySalary,
 } from "../controllers/salaryController/salary.controller.js";
 import {
   generatePayroll,
@@ -25,8 +26,9 @@ import { isHrOrAdmin } from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
-/* ================= Legacy Salary Routes (For Compatibility) ================= */
+/* ================= Salary Routes ================= */
 router.post("/create-Salary", authMiddleware, isHrOrAdmin, createSalary);
+router.post("/auto-generate", authMiddleware, isHrOrAdmin, autoGenerateMonthlySalary);
 router.get("/getAllSalary", authMiddleware, isHrOrAdmin, getAllSalaryByEmployeeId);
 router.get("/getAllEmployeeSalaryByMonthAndYear", authMiddleware, isHrOrAdmin, getAllEmployeeSalaryByMonthAndYear);
 router.get("/getSalaryBySalaryId/:id", authMiddleware, isHrOrAdmin, getSalaryBySalaryId);

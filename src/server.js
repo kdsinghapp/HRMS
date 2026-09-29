@@ -8,6 +8,7 @@ import { initSocket } from "./config/socket.js";
 // Initialize Background Cron Jobs
 import "./cron/autoCheckout.cron.js";
 import "./cron/payroll.cron.js";
+import "./cron/salaryAutoGeneration.cron.js";
 import "./cron/birthday.cron.js";
 import "./cron/anniversary.cron.js";
 
