@@ -71,7 +71,7 @@ app.use(
 );
 
 /* Rate Limiting */
-app.use("/api", limiter);
+// app.use("/api", limiter);
 
 /* Maintenance Mode Middleware */
 app.use(checkMaintenanceMode);
