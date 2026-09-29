@@ -1,11 +1,11 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { isHrOrAdmin } from "../middlewares/role.middleware.js";
 import {
   checkIn,
   checkOut,
   getEmployeeAttendance,
   getEmployeesAttendanceByDate,
-  getEmployeesWithTodayAttendance,
   getMonthlyAttendanceSummary,
   getMyAttendance,
   getTodayAttendance,
@@ -17,19 +17,19 @@ import {
 
 const router = express.Router();
 
-/* ================= PROFILE ================= */
+// PROFILE
 router.get("/getMyProfile", authMiddleware, getMyProfile);
 router.put("/updateMyProfile", authMiddleware, updateMyProfile);
 
-router.get("/getMyProfile", authMiddleware, getMyProfile);
-
-/* ================= ATTENDANCE ================= */
+// ATTENDANCE
 router.post("/check-in", authMiddleware, checkIn);
 router.post("/check-out", authMiddleware, checkOut);
 router.get("/attendance/my", authMiddleware, getMyAttendance);
-router.get("/getEmployeesAttendance", authMiddleware, getEmployeesWithTodayAttendance);
-router.get("/employee/:employeeId/attendance", authMiddleware, getEmployeeAttendance);
-router.get("/todayAllAttendance", authMiddleware, getEmployeesAttendanceByDate);
+// SECURITY: these two return OTHER employees' attendance / the whole
+// company's daily attendance — previously any logged-in employee (not
+// just HR) could pull anyone's records. Restricted to HR/Admin.
+router.get("/employee/:employeeId/attendance", authMiddleware, isHrOrAdmin, getEmployeeAttendance);
+router.get("/todayAllAttendance", authMiddleware, isHrOrAdmin, getEmployeesAttendanceByDate);
 router.get("/getTodayAttendance", authMiddleware, getTodayAttendance);
 router.get(
   "/attendance/summary",
@@ -37,6 +37,6 @@ router.get(
   getMonthlyAttendanceSummary
 );
 
-/* ================= LEAVE ================= */
+// LEAVE
 
 export default router;

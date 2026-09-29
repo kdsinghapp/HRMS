@@ -28,7 +28,7 @@ const interviewSchema = new mongoose.Schema(
 candidateModel: {
   type: String,
   required: true,
-  enum: ["Visitor", "Application"],
+  enum: ["Visitor", "Application", "CandidateResume"],
 },
 
     roundType: {
@@ -83,7 +83,7 @@ candidateModel: {
   }
 );
 
-/* ================= UNIQUE ROUND PER CANDIDATE ================= */
+// UNIQUE ROUND PER CANDIDATE
 /* Prevents scheduling same round twice */
 
 interviewSchema.index(
@@ -91,7 +91,7 @@ interviewSchema.index(
   { unique: true }
 );
 
-/* ================= AUTO SET COMPLETED DATE ================= */
+// AUTO SET COMPLETED DATE
 
 interviewSchema.pre("save", function () {
   if (this.isModified("status") && this.status === "completed") {

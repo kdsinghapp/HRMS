@@ -21,6 +21,5 @@ export const createAuditLog = async ({
       ipAddress: req?.ip || "",
     });
   } catch (error) {
-    console.error("Audit log error:", error.message);
   }
 };

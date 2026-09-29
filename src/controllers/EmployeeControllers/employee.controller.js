@@ -1,7 +1,7 @@
 import Employee from "../../models/employee.model.js";
 import { createAuditLog } from "../../services/audit.service.js";
 
-/* ================= REGISTER EMPLOYEE ================= */
+// REGISTER EMPLOYEE
 
 
 export const registerEmployee = async (req, res) => {
@@ -18,8 +18,8 @@ export const registerEmployee = async (req, res) => {
       emergencyNo,
     } = req.body;
 
- 
-    /* ================= Validation ================= */
+
+    // Validation
     if (!name || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -27,7 +27,7 @@ export const registerEmployee = async (req, res) => {
       });
     }
 
-    /* ================= Check Existing ================= */
+    // Check Existing
     const exists = await Employee.findOne({ email });
     if (exists) {
       return res.status(400).json({
@@ -36,7 +36,7 @@ export const registerEmployee = async (req, res) => {
       });
     }
 
-    /* ================= Create Employee ================= */
+    // Create Employee
     const employee = await Employee.create({
       name,
       email,
@@ -60,7 +60,6 @@ export const registerEmployee = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Register Employee Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -69,7 +68,7 @@ export const registerEmployee = async (req, res) => {
   }
 };
 
-/* ================= GET MY PROFILE ================= */
+// GET MY PROFILE
 export const getMyProfile = async (req, res) => {
   const employee = await Employee.findById(req.user.id).select("-password");
   
@@ -84,7 +83,7 @@ export const getMyProfile = async (req, res) => {
   });
 };
 
-/* ================= UPDATE MY PROFILE ================= */
+// UPDATE MY PROFILE
 export const updateMyProfile = async (req, res) => {
   const allowedFields = [
     "name",
@@ -102,7 +101,7 @@ export const updateMyProfile = async (req, res) => {
   });
 
   const employee = await Employee.findByIdAndUpdate(
-    req.user.userId,
+    req.user.id,
     updateData,
     { new: true }
   ).select("-password");

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
-/* ================= ENUM ARRAYS ================= */
+// ENUM ARRAYS
 
 const experienceOptions = [
   "Less than 1 year",
@@ -34,7 +34,7 @@ const interviewDomainOptions = [
 
 const visitorSchema = new mongoose.Schema(
   {
-    /* ================= VISIT TYPE ================= */
+    // VISIT TYPE
 
     type: {
       type: String,
@@ -42,7 +42,7 @@ const visitorSchema = new mongoose.Schema(
       required: true,
     },
 
-    /* ================= COMMON CANDIDATE FIELDS ================= */
+    // COMMON CANDIDATE FIELDS
 
     fullName: {
       type: String,
@@ -98,7 +98,7 @@ const visitorSchema = new mongoose.Schema(
       default: "Walk-in",
     },
 
-    /* ================= VISITOR SPECIFIC ================= */
+    // VISITOR SPECIFIC
 
     purposeOfVisit: String,
     personToMeet: String,
@@ -109,11 +109,11 @@ const visitorSchema = new mongoose.Schema(
 
     remarks: String,
 
-    /* ================= CANDIDATE ONLY ================= */
+    // CANDIDATE ONLY
 
     technology: String,
 
-    /* ================= INTERVIEW ONLY ================= */
+    // INTERVIEW ONLY
 
     domain: {
       type: String,
@@ -122,7 +122,7 @@ const visitorSchema = new mongoose.Schema(
 
     jobSource: String,
 
-    /* ================= AUTH ================= */
+    // AUTH
 
     password: {
       type: String,

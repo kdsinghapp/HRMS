@@ -74,6 +74,11 @@ const salarySchema = new mongoose.Schema(
       default: 0,
     },
 
+    da: {
+      type: Number,
+      default: 0,
+    },
+
     bonus: {
       type: Number,
       default: 0,
@@ -143,5 +148,35 @@ const salarySchema = new mongoose.Schema(
 
 // One salary per employee per month
 salarySchema.index({ employee: 1, month: 1, year: 1 }, { unique: true });
+
+// ==========================
+// Always derive gross / total deduction / net from the actual
+// component fields before saving, so edits made anywhere (create,
+// HR manual edit, etc.) are reflected correctly instead of leaving
+// stale totals behind.
+//
+// Note: Mongoose 9 no longer passes a `next` callback into pre('save')
+// hooks — a synchronous function (or one returning a promise) is all
+// that's needed, so there's nothing to call at the end.
+// ==========================
+salarySchema.pre("save", function () {
+  this.grossSalary =
+    (this.basic || 0) +
+    (this.hra || 0) +
+    (this.conveyanceAllowance || 0) +
+    (this.medicalAllowance || 0) +
+    (this.specialAllowance || 0) +
+    (this.da || 0) +
+    (this.bonus || 0);
+
+  this.totalDeduction =
+    (this.pf || 0) +
+    (this.esi || 0) +
+    (this.professionalTax || 0) +
+    (this.leaveDeduction || 0) +
+    (this.otherDeduction || 0);
+
+  this.netSalary = this.grossSalary - this.totalDeduction;
+});
 
 export default mongoose.model("Salary", salarySchema);

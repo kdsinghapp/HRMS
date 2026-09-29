@@ -5,43 +5,61 @@ import OldEmployee from "../src/models/oldEmployee.model.js";
 
 dotenv.config();
 
-const seedAdmin = async () => {
+const usersToSeed = [
+  // {
+  //   email: "admin@gmail.com",
+  //   employeeIdCode: "AD001",
+  //   fullName: "System Admin",
+  //   roles: ["admin", "hr", "employee"],
+  // },
+  {
+    email: "hr@gmail.com",
+    employeeIdCode: "HR001",
+    fullName: "System HR",
+    roles: ["hr", "employee"],
+  },
+];
+
+const seedUsers = async () => {
   try {
-    // connect DB
     await mongoose.connect(process.env.MONGO_URI);
 
-    const existingAdmin = await OldEmployee.findOne({
-      "account.officialEmail": "hr@gmail.com",
-    });
+    for (const seedUser of usersToSeed) {
+      const existing = await OldEmployee.findOne({
+        "account.officialEmail": seedUser.email,
+      });
 
-    if (existingAdmin) {
-      console.log("⚠️ Admin already exists");
-      process.exit(0);
+      if (existing) {
+        console.log(`Skipping ${seedUser.email}, already exists.`);
+        continue;
+      }
+
+      const hashedPassword = await bcrypt.hash("123456", 10);
+
+      await OldEmployee.create({
+        personal: {
+          fullName: seedUser.fullName,
+        },
+        professional: {
+          employeeId: seedUser.employeeIdCode,
+          status: "Active",
+        },
+        account: {
+          officialEmail: seedUser.email,
+          loginPassword: hashedPassword,
+        },
+        roles: seedUser.roles,
+      });
+
+      console.log(`Seeded ${seedUser.email}`);
     }
 
-    const hashedPassword = await bcrypt.hash("123456", 10);
-
-    await OldEmployee.create({
-      personal: {
-        fullName: "System Admin",
-      },
-      professional: {
-        employeeId: "HR001",
-        status: "Active",
-      },
-      account: {
-        officialEmail: "hr@gmail.com",
-        loginPassword: hashedPassword,
-      },
-      role: "hr",
-    });
-
-    console.log("✅ Admin created successfully");
     process.exit(0);
   } catch (error) {
-    console.error("❌ Admin seed failed:", error.message);
+    console.error("Seeding failed:", error.message);
+    console.error(error);
     process.exit(1);
   }
 };
 
-seedAdmin();
+seedUsers();

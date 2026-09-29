@@ -1,6 +1,6 @@
-import Attendance from "../../models/Attendance.js";
+import Attendance from "../../models/attendance.model.js";
 import Employee from "../../models/employee.model.js";
-import Leave from "../../models/Leave.js";
+import Leave from "../../models/leave.model.js";
 
 export const getAdminDashboardCharts = async (req, res) => {
 

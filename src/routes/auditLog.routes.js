@@ -8,10 +8,7 @@ const router = express.Router();
 // All audit log routes are restricted to HR / Admin
 router.use(authMiddleware, isHrOrAdmin);
 
-// ============================================================
-// GET /api/audit-logs
-// Query params: module, action, userId, startDate, endDate, page, limit
-// ============================================================
+// GET /api/audit-logs - Query params: module, action, userId, startDate, endDate, page, limit
 router.get("/", async (req, res) => {
   try {
     const {
@@ -59,9 +56,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ============================================================
 // GET /api/audit-logs/:id  — single log entry
-// ============================================================
 router.get("/:id", async (req, res) => {
   try {
     const log = await AuditLog.findById(req.params.id);

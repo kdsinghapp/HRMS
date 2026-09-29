@@ -72,17 +72,31 @@ const jobSchema = new mongoose.Schema(
       default: 0,
     },
 
-  experienceMax: {
-  type: Number,
-  min: 0,
-  validate: {
-    validator: function (value) {
-      if (value == null) return true;
-      return value >= this.experienceMin;
+    // FIXED EXPERIENCE MAX VALIDATOR
+    experienceMax: {
+      type: Number,
+      min: 0,
+      validate: {
+        validator: function (value) {
+          if (value == null) return true;
+
+          // Check if this is an update query or a standard save
+          const isUpdate = this.getUpdate ? true : false;
+
+          if (isUpdate) {
+            const updatePayload = this.getUpdate().$set || this.getUpdate();
+            // If experienceMin is also being updated, use the new value; otherwise, it's not part of this payload
+            const expMin = updatePayload.experienceMin;
+            if (expMin === undefined) return true; // Skip if expMin isn't provided in the patch request
+            return value >= expMin;
+          }
+
+          // Fallback for standard .save()
+          return value >= this.experienceMin;
+        },
+        message: "experienceMax must be greater than or equal to experienceMin",
+      },
     },
-    message: "experienceMax must be greater than experienceMin",
-  },
-},
 
     overview: {
       type: String,
@@ -124,17 +138,31 @@ const jobSchema = new mongoose.Schema(
       min: 0,
     },
 
-  salaryMax: {
-  type: Number,
-  min: 0,
-  validate: {
-    validator: function (value) {
-      if (value == null) return true;
-      return value >= this.salaryMin;
+    // FIXED SALARY MAX VALIDATOR
+    salaryMax: {
+      type: Number,
+      min: 0,
+      validate: {
+        validator: function (value) {
+          if (value == null) return true;
+
+          // Check if this is an update query or a standard save
+          const isUpdate = this.getUpdate ? true : false;
+
+          if (isUpdate) {
+            const updatePayload = this.getUpdate().$set || this.getUpdate();
+            // If salaryMin is also being updated, use the new value
+            const salMin = updatePayload.salaryMin;
+            if (salMin === undefined) return true; // Skip if salMin isn't provided in the patch request
+            return value >= salMin;
+          }
+
+          // Fallback for standard .save()
+          return value >= this.salaryMin;
+        },
+        message: "salaryMax must be greater than or equal to salaryMin",
+      },
     },
-    message: "salaryMax must be greater than salaryMin",
-  },
-},
 
     currency: {
       type: String,

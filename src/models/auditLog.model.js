@@ -1,27 +1,5 @@
 import mongoose from "mongoose";
-// constants/audit.js
 
-export const MODULES = {
-  EMPLOYEE: "EMPLOYEE",
-  ATTENDANCE: "ATTENDANCE",
-  LEAVE: "LEAVE",
-  PAYROLL: "PAYROLL",
-  PAYSLIP: "PAYSLIP",
-  SALARY: "SALARY",
-  SALARY_STRUCTURE: "SALARY_STRUCTURE",
-  JOB: "JOB",
-  PERFORMANCE: "PERFORMANCE",
-  RECRUITMENT: "RECRUITMENT",
-  DOCUMENTS: "DOCUMENTS",
-};
-
-export const ACTIONS = {
-  CREATE: "CREATE",
-  UPDATE: "UPDATE",
-  DELETE: "DELETE",
-  VIEW: "VIEW",
-  LOGIN: "LOGIN",
-};
 const auditLogSchema = new mongoose.Schema(
   {
     userId: {
@@ -54,6 +32,10 @@ const auditLogSchema = new mongoose.Schema(
         "PERFORMANCE",
         "RECRUITMENT",
         "DOCUMENTS",
+        "USER",
+        "DEPARTMENT",
+        "DESIGNATION",
+        "SYSTEM_SETTINGS",
       ],
       required: true,
     },

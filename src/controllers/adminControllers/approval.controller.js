@@ -1,5 +1,5 @@
 
-////////------------------get Pending Employees--------------------//////////
+// get Pending Employees
 
 import Employee from "../../models/employee.model.js";
 import { createAuditLog } from "../../services/audit.service.js";
@@ -21,7 +21,6 @@ export const getPendingEmployees = async (req, res) => {
       data: pendingEmployees,
     });
   } catch (error) {
-    console.error("PENDING EMPLOYEE ERROR 👉", error);
     res.status(500).json({
       message: "Failed to fetch pending employees",
     });
@@ -29,7 +28,7 @@ export const getPendingEmployees = async (req, res) => {
 };
 
 
-////////------------------APPROVE / REJECT EMPLOYEE--------------------//////////
+// APPROVE / REJECT EMPLOYEE
 
 
 const generateEmployeeCode = async () => {
@@ -79,7 +78,7 @@ export const updateEmployeeStatus = async (req, res) => {
 
     await employee.save();
 
-    // ========= Audit log ================= //
+    // Audit log
     await createAuditLog({
       user: req.user,
       action: "UPDATE",
@@ -92,7 +91,7 @@ export const updateEmployeeStatus = async (req, res) => {
 
     res.json({
       message: `Employee ${status} successfully`,
-      approvedByRole: req.user.role,
+      approvedByRoles: req.user.roles,
       employeeId: employee._id,
       status: employee.status,
     });

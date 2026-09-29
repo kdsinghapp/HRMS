@@ -7,7 +7,7 @@ import { verifyEmailOtpTemplate } from "../utils/emailTemplates/verifyEmailOtp.j
 import Employee from "../models/employee.model.js";
 import OldEmployee from "../models/oldEmployee.model.js";
 
-////////------------------LOGIN --------------------//////////
+// LOGIN
 
 export const login = async (req, res) => {
   try {
@@ -45,8 +45,13 @@ export const login = async (req, res) => {
     res
       .cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: false, // production me true
-        sameSite: "strict",
+        // Frontend (Vercel) and backend (Render) live on different domains,
+        // so this cookie is cross-site: it needs secure + sameSite:"none" to
+        // ever be sent/accepted by the browser. In local dev (http) we fall
+        // back to sameSite:"lax" since secure cookies require HTTPS.
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30d, matches refresh token expiry
       })
       .status(200)
       .json({
@@ -56,45 +61,52 @@ export const login = async (req, res) => {
           name: employeeDoc.personal?.fullName,
           email: employeeDoc.account?.officialEmail,
           employeeId: employeeDoc.professional?.employeeId,
-          role: employeeDoc.role, // ✅ ADD THIS
+          roles: employeeDoc.roles, // ✅ multi-role array drives all access control
         },
         accessToken,
       });
   } catch (error) {
-    console.error("LOGIN ERROR 👉", error);
     res.status(500).json({ message: "Login failed" });
   }
 };
 
-//============================ GET MY PROFILE ============================//
+// GET MY PROFILE
 export const getMyProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    // console.log("GET PROFILE USER ID 👉", userId);
-    const employee = await OldEmployee.findById(userId).select(
-      "-account.loginPassword ",
-    );
+    const employee = await OldEmployee.findById(userId);
 
     if (!employee) {
       return res.status(404).json({ message: "Employee not found" });
     }
 
+    const employeeObj = employee.toObject();
+    const hasLoginPassword = !!employeeObj.account?.loginPassword;
+
+    // 🔥 Never send any stored credentials to the client — this used to
+    // only strip loginPassword, but officialPassword/teamsPassword are
+    // stored on the same sub-document and were leaking here too.
+    if (employeeObj.account) {
+      delete employeeObj.account.loginPassword;
+      delete employeeObj.account.officialPassword;
+      delete employeeObj.account.teamsPassword;
+    }
+
     res.status(200).json({
       success: true,
-      data: employee,
+      data: { ...employeeObj, hasLoginPassword },
     });
   } catch (error) {
-    console.error("GET PROFILE ERROR 👉", error);
     res.status(500).json({ message: "Failed to fetch profile" });
   }
 };
 
-////////------------------CHANGE PASSWORD--------------------//////////
+// CHANGE PASSWORD
 export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
 
-    const employeeDoc = await OldEmployee.findById(req.user.userId);
+    const employeeDoc = await OldEmployee.findById(req.user.id);
 
     if (!employeeDoc) {
       return res.status(404).json({ message: "User not found" });
@@ -124,15 +136,14 @@ export const changePassword = async (req, res) => {
 
     res.json({ message: "Password changed successfully" });
   } catch (error) {
-    console.error("CHANGE PASSWORD ERROR 👉", error);
     res.status(500).json({ message: "Password change failed" });
   }
 };
 
-////////------------------SEND EMAIL OTP--------------------//////////
+// SEND EMAIL OTP
 export const sendEmailOTP = async (req, res) => {
   try {
-    const employeeDoc = await Employee.findById(req.user.userId);
+    const employeeDoc = await Employee.findById(req.user.id);
 
     if (!employeeDoc) {
       return res.status(404).json({ message: "User not found" });
@@ -161,12 +172,12 @@ export const sendEmailOTP = async (req, res) => {
   }
 };
 
-////////------------------VERIFY EMAIL OTP--------------------//////////
+// VERIFY EMAIL OTP
 export const verifyEmailOTP = async (req, res) => {
   try {
     const { otp } = req.body;
 
-    const employeeDoc = await Employee.findById(req.user.userId);
+    const employeeDoc = await Employee.findById(req.user.id);
 
     if (!employeeDoc) {
       return res.status(404).json({ message: "User not found" });
@@ -192,23 +203,27 @@ export const verifyEmailOTP = async (req, res) => {
   }
 };
 
-////////------------------FORGOT PASSWORD--------------------//////////
+// FORGOT PASSWORD
 
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
+    const normalizedEmail = email?.toLowerCase();
 
-    console.log("api called", email);
+    const genericResponse = {
+      message: "If that account exists, a password reset link has been sent.",
+    };
 
     // 🔥 find by nested email
     const employeeDoc = await OldEmployee.findOne({
-      "account.officialEmail": email,
+      "account.officialEmail": normalizedEmail,
     });
 
     if (!employeeDoc) {
-      return res.status(404).json({
-        message: "User not found",
-      });
+      // Same response as the success case below — returning a distinct
+      // "User not found" here let anyone enumerate real employee emails
+      // by hitting this endpoint and watching the status code change.
+      return res.status(200).json(genericResponse);
     }
 
     // 🔥 generate token
@@ -219,7 +234,6 @@ export const forgotPassword = async (req, res) => {
       .update(resetToken)
       .digest("hex");
 
-    console.log("hashedToken", hashedToken);
 
     // 🔥 save in DB
     employeeDoc.forgotPasswordToken = hashedToken;
@@ -230,7 +244,6 @@ export const forgotPassword = async (req, res) => {
     // 🔥 create URL
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
 
-    console.log("resetUrl", resetUrl);
 
     // 🔥 send email
     await sendEmail({
@@ -247,19 +260,16 @@ export const forgotPassword = async (req, res) => {
       `,
     });
 
-    res.json({
-      message: "Password reset link sent to email 📩",
-    });
+    res.status(200).json(genericResponse);
   } catch (err) {
-    console.error("Forgot password error:", err);
-
+    console.error("forgotPassword error:", err);
     res.status(500).json({
-      message: err.message || "Failed to process request",
+      message: "Failed to process request",
     });
   }
 };
 
-////////------------------RESET PASSWORD--------------------//////////
+// RESET PASSWORD
 export const resetPasswordController = async (req, res) => {
   try {
     const { newPassword } = req.body;
@@ -276,7 +286,6 @@ export const resetPasswordController = async (req, res) => {
       .update(req.params.token)
       .digest("hex");
 
-    console.log("hashedToken", hashedToken);
 
     // 🔥 find user
     const employeeDoc = await OldEmployee.findOne({
@@ -307,14 +316,13 @@ export const resetPasswordController = async (req, res) => {
       message: "Password reset successful ✅",
     });
   } catch (err) {
-    console.error("Reset password error:", err);
 
     res.status(500).json({
       message: err.message || "Reset failed",
     });
   }
 };
-////////------------------REFRESH ACCESS TOKEN--------------------//////////
+// REFRESH ACCESS TOKEN
 export const refreshAccessToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 const employeeSchema = new mongoose.Schema(
   {
-    /* ================= AUTH ================= */
+    // AUTH
 
     email: {
       type: String,
@@ -26,7 +26,7 @@ const employeeSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* ================= HR CONTROLLED ================= */
+    // HR CONTROLLED
 
     employeeCode: {
       type: String,
@@ -53,7 +53,7 @@ const employeeSchema = new mongoose.Schema(
       default: null,
     },
 
-    /* ================= EMPLOYEE DATA ================= */
+    // EMPLOYEE DATA
 
     name: { type: String, required: true, trim: true },
     dateOfBirth: { type: Date, default: null },
@@ -63,7 +63,7 @@ const employeeSchema = new mongoose.Schema(
     permanentAddress: { type: String, default: null },
     emergencyNo: { type: String, default: null },
 
-    /* ================= STATUS ================= */
+    // STATUS
 
     status: {
       type: String,
@@ -102,7 +102,7 @@ employeeSchema.virtual("joiningDate").get(function () {
 });
 
 
-/* ================= PASSWORD HASHING ================= */
+// PASSWORD HASHING
 
 employeeSchema.pre("save", async function () {
   if (!this.isModified("password")) return;
@@ -111,13 +111,13 @@ employeeSchema.pre("save", async function () {
   this.password = await bcrypt.hash(this.password, salt);
 });
 
-/* ================= PASSWORD COMPARE ================= */
+// PASSWORD COMPARE
 
 employeeSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-/* ================= SAFE MODEL EXPORT ================= */
+// SAFE MODEL EXPORT
 
 const Employee =
   mongoose.models.Employee ||

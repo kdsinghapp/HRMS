@@ -10,7 +10,7 @@ import {
   getAttendanceByEmployee,
   getAttendanceStats,
   getMonthlyAttendanceSummary,
-  updateAttendanceByEmpId,
+  updateAttendanceByEmployee,
 } from "../controllers/adminControllers/adminAttendance.controller.js";
 import {
   getAllEmployees,
@@ -19,15 +19,18 @@ import {
   updateEmployeeByAdmin,
 } from "../controllers/adminControllers/adminEmployee.controller.js";
 import {
-  filterLeaves,
   getAllLeaves,
+  getLeavesByEmployee,
   updateLeaveStatus,
+  updateLeaveDetails,
+  createLeaveForEmployee,
+  deleteLeave,
 } from "../controllers/adminControllers/leave.admin.controller.js";
 import { getAdminDashboardCharts } from "../controllers/adminControllers/dashboard.admin.controller.js";
 
 const router = express.Router();
 
-/* ================= EMPLOYEE APPROVAL ================= */
+// EMPLOYEE APPROVAL
 router.get(
   "/employees/pending", //done
   authMiddleware,
@@ -42,7 +45,7 @@ router.patch(
   updateEmployeeStatus,
 );
 
-/* ================= EMPLOYEE CRUD (ADMIN) ================= */
+// EMPLOYEE CRUD (ADMIN)
 router.get(
   "/allEmployees", //done
   authMiddleware,
@@ -71,7 +74,7 @@ router.put(
   toggleEmployeeActiveStatus,
 );
 
-/* ================= ATTENDANCE ================= */
+// ATTENDANCE
 router.get(
   "/attendance/by-date", //done
   authMiddleware,
@@ -79,7 +82,7 @@ router.get(
   getAttendanceByDate,
 );
 
-/* ================= ATTENDANCE BY EMPLOYEE ID ================= */
+// ATTENDANCE BY EMPLOYEE ID
 router.get(
   "/attendance/by-employee/:employeeId", //done
   authMiddleware,
@@ -87,7 +90,17 @@ router.get(
   getAttendanceByEmployee,
 );
 
-/* ================= MONTHALY ATTENDANCE  ================= */
+// EDIT ATTENDANCE BY EMPLOYEE (HR manual edit)
+// Used by the HR-side attendance calendar popup so HR can correct/fill in
+// an employee's status, check-in and check-out for a specific date.
+router.put(
+  "/attendance/employee/:employeeId",
+  authMiddleware,
+  isHrOrAdmin,
+  updateAttendanceByEmployee,
+);
+
+// MONTHALY ATTENDANCE
 router.get(
   "/attendance/monthly", //done
   authMiddleware,
@@ -95,7 +108,7 @@ router.get(
   getMonthlyAttendanceSummary,
 );
 
-/* =================  ATTENDANCE STATS  ================= */ 
+// ATTENDANCE STATS
 router.get(
   "/attendance/Stats", //done
   authMiddleware,
@@ -103,13 +116,7 @@ router.get(
   getAttendanceStats,
 );
 
-router.put(
-  "/attendance/update/:employeeId", //done
-  authMiddleware,
-  isHrOrAdmin,
-  updateAttendanceByEmpId,
-);
-/* =================  get AdmiDashboard Charts ================= */
+// get AdmiDashboard Charts
 router.get(
   "/adminDashboardCharts", //done
   authMiddleware,
@@ -117,28 +124,63 @@ router.get(
   getAdminDashboardCharts,
 );
 
-
-/* =================  get Pending Leaves  ================= */
-// router.get(
-//   "/leaves/pending", //done
-//   authMiddleware,
-//   isHrOrAdmin,
-//   filterLeaves,
-// );
-
-/* =================  get Pending Leaves  ================= */
+// get Pending Leaves
 router.get(
   "/leaves/pending", //done
   authMiddleware,
   isHrOrAdmin,
   getAllLeaves,
 );
-/* =================  get Pending Leaves  ================= */
+// get Pending Leaves
 router.patch(
   "/leaves/:leaveId/status", //done
   authMiddleware,
   isHrOrAdmin,
   updateLeaveStatus,
+);
+
+// get a single employee's leaves
+// Used by HR-side attendance calendar + monthly summary so an employee's
+// leave requests show up when HR is viewing that employee's data.
+router.get(
+  "/leaves/employee/:employeeId",
+  authMiddleware,
+  isHrOrAdmin,
+  getLeavesByEmployee,
+);
+
+// HR full edit of a leave entry
+// Used by the attendance calendar popup — HR can correct leave type, day
+// mode (Full/Half Day), status, or reason for a specific leave, not just
+// approve/reject once like /leaves/:leaveId/status above.
+router.patch(
+  "/leaves/:leaveId",
+  authMiddleware,
+  isHrOrAdmin,
+  updateLeaveDetails,
+);
+
+// HR create a leave directly for an employee
+// Used by the attendance calendar popup's "+ Add Leave" tab — when a
+// date has no existing leave, HR fills the same fields (leave type, day
+// mode, status, reason) as the edit form above, and this creates a new
+// leave instead of patching one.
+router.post(
+  "/leaves",
+  authMiddleware,
+  isHrOrAdmin,
+  createLeaveForEmployee,
+);
+
+// HR remove a leave entirely
+// Used by the attendance calendar popup's "Remove Leave" action — the
+// "No record" equivalent for leaves, undoes a leave entry completely
+// instead of just changing its status to CANCELLED.
+router.delete(
+  "/leaves/:leaveId",
+  authMiddleware,
+  isHrOrAdmin,
+  deleteLeave,
 );
 
 export default router;

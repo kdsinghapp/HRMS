@@ -1,15 +1,14 @@
 import Interview from "../../models/interview.model.js";
-import Visitor from "../../models/Visitor.js";
+import Visitor from "../../models/visitor.model.js";
 import Employee from "../../models/employee.model.js";
 import OldEmployee from './../../models/oldEmployee.model.js';
 import applicationModel from "../../models/application.model.js";
+import CandidateResume from "../../models/candidateResume.model.js";
 
-/* ================= ROUND ORDER ================= */
+// ROUND ORDER
 const roundOrder = ["HR", "Technical", "Machine Coding", "Director", "Salary Discussion","Document Verification","Joining Form",];
 
-/* ============================================================
-   1️⃣ SCHEDULE INTERVIEW
-============================================================ */
+// 1️⃣ SCHEDULE INTERVIEW
 export const scheduleInterview = async (req, res) => {
   try {
     const {
@@ -20,7 +19,7 @@ export const scheduleInterview = async (req, res) => {
       interviewTime,
     } = req.body;
 
-    /* ================= BASIC VALIDATION ================= */
+    // BASIC VALIDATION
     if (
       !candidateId ||
       !roundType ||
@@ -33,7 +32,7 @@ export const scheduleInterview = async (req, res) => {
       });
     }
 
-    /* ================= DATE + TIME ================= */
+    // DATE + TIME
 
     const [year, month, day] = interviewDate.split("-").map(Number);
     const [hours, minutes] = interviewTime.split(":").map(Number);
@@ -49,7 +48,7 @@ export const scheduleInterview = async (req, res) => {
       )
     );
 
-    /* ================= PAST DATE CHECK ================= */
+    // PAST DATE CHECK
 
     if (scheduledDate < new Date()) {
       return res.status(400).json({
@@ -57,7 +56,7 @@ export const scheduleInterview = async (req, res) => {
       });
     }
 
-    /* ================= SUNDAY CHECK ================= */
+    // SUNDAY CHECK
 
     if (scheduledDate.getUTCDay() === 0) {
       return res.status(400).json({
@@ -65,7 +64,7 @@ export const scheduleInterview = async (req, res) => {
       });
     }
 
-    /* ================= OFFICE HOURS (IST) ================= */
+    // OFFICE HOURS (IST)
 
     const istHour = hours;
 
@@ -75,7 +74,7 @@ export const scheduleInterview = async (req, res) => {
       });
     }
 
-    /* ================= CANDIDATE CHECK ================= */
+    // CANDIDATE CHECK
 
     let candidate = await Visitor.findById(candidateId);
     let candidateModel = "Visitor";
@@ -86,12 +85,17 @@ export const scheduleInterview = async (req, res) => {
     }
 
     if (!candidate) {
+      candidate = await CandidateResume.findById(candidateId);
+      candidateModel = "CandidateResume";
+    }
+
+    if (!candidate) {
       return res.status(404).json({
         message: "Candidate not found",
       });
     }
 
-    /* ================= INTERVIEWER CHECK ================= */
+    // INTERVIEWER CHECK
 
     const interviewer =
       (await Employee.findById(interviewerId)) ||
@@ -103,7 +107,7 @@ export const scheduleInterview = async (req, res) => {
       });
     }
 
-    /* ================= PREVIOUS ROUND ================= */
+    // PREVIOUS ROUND
 
     const lastInterview = await Interview.findOne({
       candidate: candidateId,
@@ -147,7 +151,7 @@ export const scheduleInterview = async (req, res) => {
       }
     }
 
-    /* ================= CREATE ================= */
+    // CREATE
 
     const interview = await Interview.create({
       candidate: candidateId,
@@ -163,7 +167,6 @@ export const scheduleInterview = async (req, res) => {
       interview,
     });
   } catch (error) {
-    console.error("Schedule Interview Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -172,10 +175,7 @@ export const scheduleInterview = async (req, res) => {
   }
 };
 
-
-/* ============================================================
-   2️⃣ COMPLETE INTERVIEW
-============================================================ */
+// 2️⃣ COMPLETE INTERVIEW
 export const completeInterview = async (req, res) => {
   try {
     const { interviewId } = req.params
@@ -212,10 +212,7 @@ export const completeInterview = async (req, res) => {
   }
 };
 
-
-/* ============================================================
-   3️⃣ CANCEL INTERVIEW
-============================================================ */
+// 3️⃣ CANCEL INTERVIEW
 export const cancelInterview = async (req, res) => {
   try {
     const { interviewId, reason } = req.body;
@@ -244,10 +241,7 @@ export const cancelInterview = async (req, res) => {
   }
 };
 
-
-/* ============================================================
-   4️⃣ GET CANDIDATE INTERVIEWS
-============================================================ */
+// 4️⃣ GET CANDIDATE INTERVIEWS
 export const getCandidateInterviews = async (req, res) => {
   try {
     const { candidateId } = req.params;
@@ -269,8 +263,7 @@ export const getCandidateInterviews = async (req, res) => {
   }
 };
 
-
-/* ================= INTERVIEWER DASHBOARD ================= */
+// INTERVIEWER DASHBOARD
 export const getInterviewerInterviews = async (req, res) => {
   try {
     const interviews = await Interview.find({
@@ -298,42 +291,7 @@ export const getInterviewerInterviews = async (req, res) => {
   }
 };
 
-
-/* ================= CANDIDATE SUMMARY ================= */
-// export const getCandidateInterviews = async (req, res) => {
-//   try {
-//     const candidate = await Visitor.findById(req.params.candidateId);
-
-//     if (!candidate) {
-//       return res.status(404).json({ message: "Candidate not found" });
-//     }
-
-//     const interviews = await Interview.find({
-//       candidate: req.params.candidateId,
-//     })
-//       .populate("interviewer", "name role")
-//       .sort({ createdAt: 1 });
-
-//     res.json({
-//       candidate: {
-//         name: candidate.fullName,
-//         technology: candidate.technology,
-//         status: candidate.applicationStatus,
-//         averageRating: candidate.averageRating,
-//         currentStage: candidate.currentStage,
-//       },
-//       interviews,
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
-
-//========================================//
-
-
+/* Candidate summary with their interviews */
 
 export const getCandidateSummary = async (req, res) => {
   try {

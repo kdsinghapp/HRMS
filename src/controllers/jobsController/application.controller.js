@@ -2,17 +2,14 @@ import Application from "../../models/application.model.js";
 import Job from "../../models/job.model.js";
 import { createAuditLog } from "../../services/audit.service.js";
 
-/* =====================================================
-   APPLY FOR JOB (PUBLIC)
-===================================================== */
+// APPLY FOR JOB (PUBLIC)
 export const applyForJob = async (req, res) => {
-  // console.log("Job apply api called"); // Debugging log
   try {
     const { jobId } = req.params;
 
-    /* ================= JOB VALIDATION ================= */
+    // JOB VALIDATION
     const job = await Job.findById(jobId);
-    console.log("Job found:", job); // Debugging log
+     // Debugging log
     if (!job || job.status !== "Published" || !job.isActive) {
       return res.status(400).json({
         success: false,
@@ -20,7 +17,7 @@ export const applyForJob = async (req, res) => {
       });
     }
 
-    /* ================= BODY DATA ================= */
+    // BODY DATA
     const {
       fullName,
       phone,
@@ -35,7 +32,7 @@ export const applyForJob = async (req, res) => {
       coverLetter,
     } = req.body;
 
-    /* ================= REQUIRED VALIDATION ================= */
+    // REQUIRED VALIDATION
     if (!fullName || !phone || !email || !resumeUrl) {
       return res.status(400).json({
         success: false,
@@ -43,7 +40,7 @@ export const applyForJob = async (req, res) => {
       });
     }
 
-    /* ================= RESUME URL VALIDATION ================= */
+    // RESUME URL VALIDATION
     if (!resumeUrl.startsWith("http")) {
       return res.status(400).json({
         success: false,
@@ -51,7 +48,7 @@ export const applyForJob = async (req, res) => {
       });
     }
 
-    /* ================= DUPLICATE CHECK ================= */
+    // DUPLICATE CHECK
     const existing = await Application.findOne({
       job: jobId,
       email: email.toLowerCase(),
@@ -64,7 +61,7 @@ export const applyForJob = async (req, res) => {
       });
     }
 
-    /* ================= SKILLS PARSING ================= */
+    // SKILLS PARSING
     let parsedSkills = [];
 
     if (skills) {
@@ -75,7 +72,7 @@ export const applyForJob = async (req, res) => {
       }
     }
 
-    /* ================= CREATE APPLICATION ================= */
+    // CREATE APPLICATION
     const application = await Application.create({
       job: jobId,
       fullName,
@@ -92,7 +89,7 @@ export const applyForJob = async (req, res) => {
       status: "Applied",
     });
 
-    /* ================= INCREMENT JOB COUNT ================= */
+    // INCREMENT JOB COUNT
     await Job.findByIdAndUpdate(jobId, {
       $inc: { totalApplications: 1 },
     });
@@ -110,9 +107,7 @@ export const applyForJob = async (req, res) => {
   }
 };
 
-/* =====================================================
-   GET ALL APPLICATIONS (ADMIN)
-===================================================== */
+// GET ALL APPLICATIONS (ADMIN)
 export const getAllApplications = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
@@ -150,9 +145,7 @@ export const getAllApplications = async (req, res) => {
   }
 };
 
-/* =====================================================
-   UPDATE APPLICATION STATUS (PIPELINE CONTROL)
-===================================================== */
+// UPDATE APPLICATION STATUS (PIPELINE CONTROL)
 
 export const updateApplicationStatus = async (req, res) => {
   try {
@@ -206,9 +199,7 @@ export const updateApplicationStatus = async (req, res) => {
   }
 };
 
-/* =====================================================
-   GET APPLICATIONS BY JOB
-===================================================== */
+// GET APPLICATIONS BY JOB
 export const getApplicationsByJob = async (req, res) => {
   try {
     const { jobId } = req.params;
@@ -229,15 +220,13 @@ export const getApplicationsByJob = async (req, res) => {
   }
 };
 
-/* =====================================================
-   GET SINGLE APPLICATION
-===================================================== */
+// GET SINGLE APPLICATION
 export const getSingleApplication = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id).populate(
       "job",
     );
-console.log("Fetched application:", application); // Debugging log
+ // Debugging log
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -257,11 +246,7 @@ console.log("Fetched application:", application); // Debugging log
   }
 };
 
-
-
-/* =====================================================
-   DELETE APPLICATION (ADMIN)
-===================================================== */
+// DELETE APPLICATION (ADMIN)
 export const deleteApplication = async (req, res) => {
   try {
     const application = await Application.findByIdAndDelete(req.params.id);
@@ -284,5 +269,4 @@ export const deleteApplication = async (req, res) => {
     });
   }
 };
-
 

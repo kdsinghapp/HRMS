@@ -1,9 +1,9 @@
 import { ACTIONS, MODULES } from "../../constants/audit.js";
 import OldEmployee from "../../models/oldEmployee.model.js";
 import Salary from "../../models/salary.model.js";
-import salaryStructureSchema from "../../models/salaryStructureSchema.js";
 import SalaryStructure from "../../models/salaryStructureSchema.js";
 import { createAuditLog } from "../../services/audit.service.js";
+import { notifyUser } from "../../services/notification.service.js";
 
 /* ================= CREATE (OR UPDATE SAME MONTH) ================= */
 export const createSalary = async (req, res) => {
@@ -28,7 +28,7 @@ export const createSalary = async (req, res) => {
     }
 
     // Salary Structure Check
-    const structure = await salaryStructureSchema.findOne({ employee });
+    const structure = await SalaryStructure.findOne({ employee });
 
     if (!structure) {
       return res.status(404).json({
@@ -40,47 +40,68 @@ export const createSalary = async (req, res) => {
     // ==========================
     // Earnings
     // ==========================
+    // Fixed components always come from the employee's salary
+    // structure. Variable, per-month components (bonus, DA, ad-hoc
+    // "other" deductions, manual PF/ESI overrides) can be supplied
+    // in the request body — if the caller sends a value we respect
+    // it, otherwise we fall back to a sensible default.
+
+    const hasValue = (v) => v !== undefined && v !== null && v !== "";
 
     const basic = structure.basicSalary || 0;
     const hra = structure.hra || 0;
-    const specialAllowance = structure.allowances || 0;
-    const bonus = structure.bonus || 0;
+    const conveyanceAllowance = structure.conveyanceAllowance || 0;
+    const medicalAllowance = structure.medicalAllowance || 0;
+    const specialAllowance = structure.specialAllowance || 0;
+
+    // Bonus and DA can vary month to month, so an explicit value in
+    // the request overrides the structure's default.
+    const bonus = hasValue(req.body.bonus)
+      ? Number(req.body.bonus)
+      : structure.bonus || 0;
+
+    const da = hasValue(req.body.da) ? Number(req.body.da) : 0;
 
     const grossSalary =
       basic +
       hra +
+      conveyanceAllowance +
+      medicalAllowance +
       specialAllowance +
-      bonus;console.log("GROSS:", grossSalary);
+      da +
+      bonus;
+
     // ==========================
     // Deductions
     // ==========================
 
-    // PF = 12% of Basic
-    const pf = Math.round((basic * 12) / 100);
+    // PF = 12% of Basic, unless a manual override is provided
+    const pf = hasValue(req.body.pf)
+      ? Number(req.body.pf)
+      : Math.round((basic * 12) / 100);
 
-    // ESI = 0.75% of Gross (only if gross <= 21000)
-    const esi =
-      grossSalary <= 21000
+    // ESI = 0.75% of Gross (only if gross <= 21000), unless overridden
+    const esi = hasValue(req.body.esi)
+      ? Number(req.body.esi)
+      : grossSalary <= 21000
         ? Number(((grossSalary * 0.75) / 100).toFixed(2))
         : 0;
 
-    const professionalTax = structure.professionalTax || 0;
+    const professionalTax = hasValue(req.body.professionalTax)
+      ? Number(req.body.professionalTax)
+      : structure.professionalTax || 0;
 
-    const otherDeduction =
-      structure.otherDeductions || 0;
-
-    const totalDeduction =
-      pf +
-      esi +
-      professionalTax +
-      otherDeduction;
-
-    const netSalary =
-      grossSalary - totalDeduction;
+    // Ad-hoc deduction for this specific payroll run (not part of
+    // the fixed structure), supplied by the caller if applicable.
+    const otherDeduction = hasValue(req.body.otherDeduction)
+      ? Number(req.body.otherDeduction)
+      : 0;
 
     // ==========================
     // Salary Payload
     // ==========================
+    // grossSalary / totalDeduction / netSalary are derived
+    // automatically by the model's pre-save hook.
 
     const salaryPayload = {
       employee,
@@ -88,12 +109,15 @@ export const createSalary = async (req, res) => {
       year,
 
       salaryType: "monthly",
-      effectiveFrom: structure.effectiveFrom,
+      effectiveFrom: req.body.effectiveFrom || structure.effectiveFrom,
 
       // Earnings
       basic,
       hra,
+      conveyanceAllowance,
+      medicalAllowance,
       specialAllowance,
+      da,
       bonus,
 
       // Deductions
@@ -101,10 +125,6 @@ export const createSalary = async (req, res) => {
       esi,
       professionalTax,
       otherDeduction,
-
-      // Calculated
-      grossSalary,
-      netSalary,
     };
 
     // ==========================
@@ -134,6 +154,16 @@ export const createSalary = async (req, res) => {
         req,
       });
 
+      // Notify employee
+      await notifyUser({
+        recipientId: employee,
+        title: "Salary Updated",
+        message: `Your salary for ${month}/${year} has been regenerated`,
+        type: "SALARY",
+        link: "/employee/payroll-salary",
+        createdBy: req.user.id,
+      });
+
       return res.status(200).json({
         success: true,
         message: "Salary regenerated successfully",
@@ -156,6 +186,16 @@ export const createSalary = async (req, res) => {
       recordId: salary._id,
       newData: salary,
       req,
+    });
+
+    // Notify employee
+    await notifyUser({
+      recipientId: employee,
+      title: "Salary Generated",
+      message: `Your salary for ${month}/${year} has been generated`,
+      type: "SALARY",
+      link: "/employee/payroll-salary",
+      createdBy: req.user.id,
     });
 
     return res.status(201).json({
@@ -400,7 +440,16 @@ export const getMySalary = async (req, res) => {
   try {
     const employeeId = req.user.id;
 
+    // Populate the same employee fields the HR-side salary slip uses
+    // (name, employee ID, designation, department, date of joining) so
+    // the employee's own downloaded slip can render the identical,
+    // full "Employee Details" section instead of a stripped-down one.
     const salaries = await Salary.find({ employee: employeeId })
+      .populate({
+        path: "employee",
+        select:
+          "personal.fullName professional.employeeId professional.designation professional.department professional.dateOfJoining",
+      })
       .sort({ year: -1, month: -1 });
 
     return res.status(200).json({

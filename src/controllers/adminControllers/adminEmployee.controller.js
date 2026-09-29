@@ -108,7 +108,6 @@ export const updateEmployeeByAdmin = async (req, res) => {
       data: employee,
     });
   } catch (error) {
-    console.error("UPDATE EMPLOYEE ERROR 👉", error);
     res.status(500).json({
       success: false,
       message: error.message,

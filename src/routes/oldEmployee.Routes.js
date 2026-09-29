@@ -1,5 +1,7 @@
 import express from "express";
 import upload from "../services/uploads.js";
+import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { isHrOrAdmin } from "../middlewares/role.middleware.js";
 
 import {
   createEmployee,
@@ -11,10 +13,18 @@ import {
 
 const router = express.Router();
 
-/* -------- CREATE -------- */
+// SECURITY: every route below deals with full employee records (personal
+// data, bank details, documents, account credentials) and previously had
+// NO authentication at all — anyone on the internet could list, read,
+// create, or overwrite any employee. All routes now require an HR/Admin
+// session.
+
+// CREATE
 
 router.post(
   "/create",
+  authMiddleware,
+  isHrOrAdmin,
   upload.fields([
     { name: "personal[profilePhoto]", maxCount: 1 },
 
@@ -28,16 +38,18 @@ router.post(
   createEmployee
 );
 
-/* -------- GET -------- */
+// GET
 
-router.get("/getAllEmployees", getAllEmployees);
-router.get("/getEmployees", getEmployees);
-router.get("/:id", getEmployeeById);
+router.get("/getAllEmployees", authMiddleware, isHrOrAdmin, getAllEmployees);
+router.get("/getEmployees", authMiddleware, isHrOrAdmin, getEmployees);
+router.get("/:id", authMiddleware, isHrOrAdmin, getEmployeeById);
 
-/* -------- UPDATE -------- */
+// UPDATE
 
 router.patch(
   "/update/:id",
+  authMiddleware,
+  isHrOrAdmin,
   upload.fields([
     { name: "personal[profilePhoto]", maxCount: 1 },
 
@@ -51,7 +63,7 @@ router.patch(
   updateEmployee
 );
 
-/* -------- DELETE -------- */
+// DELETE
 
 
 export default router;

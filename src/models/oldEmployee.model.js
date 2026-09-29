@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
-/* ================= PERSONAL INFO ================= */
+// PERSONAL INFO
 const personalSchema = new Schema(
   {
     fullName: { type: String, required: true, trim: true },
@@ -18,7 +18,7 @@ const personalSchema = new Schema(
   { _id: false },
 );
 
-/* ================= CONTACT ================= */
+// CONTACT
 const contactSchema = new Schema(
   {
     primaryPhone: { type: String, trim: true },
@@ -34,7 +34,7 @@ const contactSchema = new Schema(
   { _id: false },
 );
 
-/* ================= ADDRESS ================= */
+// ADDRESS
 const addressSchema = new Schema(
   {
     current: {
@@ -55,7 +55,7 @@ const addressSchema = new Schema(
   { _id: false },
 );
 
-/* ================= PROFESSIONAL ================= */
+// PROFESSIONAL
 const professionalSchema = new Schema(
   {
     employeeId: { type: String },
@@ -88,7 +88,7 @@ const professionalSchema = new Schema(
   { _id: false },
 );
 
-/* ================= IDENTIFICATION ================= */
+// IDENTIFICATION
 const identificationSchema = new Schema(
   {
     aadhaarNo: { type: String, trim: true },
@@ -100,21 +100,19 @@ const identificationSchema = new Schema(
   { _id: false },
 );
 
-/* ================= ACCOUNT ================= */
+// ACCOUNT
 const accountSchema = new Schema(
   {
     officialEmail: { type: String, trim: true, lowercase: true },
-
-    officialPassword: { type: String }, // ✅ NEW (replace old password)
-    loginPassword: { type: String }, // ✅ NEW (important)
-
-    skypeId: { type: String },
-    skypePassword: { type: String },
+    officialPassword: { type: String },
+    loginPassword: { type: String },
+    teamsId: { type: String },
+    teamsPassword: { type: String },
   },
   { _id: false },
 );
 
-/* ================= BANK ================= */
+// BANK
 const bankSchema = new Schema(
   {
     accountHolderName: { type: String }, // ✅ NEW
@@ -126,7 +124,7 @@ const bankSchema = new Schema(
   { _id: false },
 );
 
-/* ================= DOCUMENTS ================= */
+// DOCUMENTS
 const documentSchema = new Schema(
   {
     aadharCard: { type: String },
@@ -139,7 +137,7 @@ const documentSchema = new Schema(
   { _id: false },
 );
 
-/* ================= MAIN EMPLOYEE SCHEMA ================= */
+// MAIN EMPLOYEE SCHEMA
 
 const employeeSchema = new Schema(
   {
@@ -158,11 +156,24 @@ const employeeSchema = new Schema(
     bank: bankSchema,
 
     documents: documentSchema,
-    // ✅ ADD HERE (CORRECT PLACE)
-    role: {
-      type: String,
-      enum: ["employee", "hr"],
-      default: "employee",
+
+    // ✅ MULTI-ROLE ACCESS
+    // Single source of truth for access control. A user can hold more than
+    // one role at the same time (e.g. an HR user is also an employee, and
+    // Admin has access to all three sides). No separate "double dashboard"
+    // flag/permission exists anywhere else — everything is derived from
+    // this array.
+    //   - Employee created by HR        -> ["employee"]
+    //   - HR seeded                     -> ["hr", "employee"]
+    //   - Admin seeded                  -> ["admin", "hr", "employee"]
+    roles: {
+      type: [String],
+      enum: ["employee", "hr", "admin"],
+      default: ["employee"],
+      validate: {
+        validator: (arr) => Array.isArray(arr) && arr.length > 0,
+        message: "At least one role is required",
+      },
     },
     // 🔥 ADD HERE (IMPORTANT)
     forgotPasswordToken: {

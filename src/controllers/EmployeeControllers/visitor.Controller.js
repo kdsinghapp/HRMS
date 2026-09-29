@@ -1,10 +1,9 @@
-import Visitor from "../../models/Visitor.js";
+import Visitor from "../../models/visitor.model.js";
 import mongoose from "mongoose";
 
-/* ================= CREATE ================= */
+// CREATE
 
 export const createVisitor = async (req, res) => {
-  console.log("api called");
   try {
     const {
       type,
@@ -25,8 +24,7 @@ export const createVisitor = async (req, res) => {
       currentOrganization,
       jobSource,
     } = req.body;
-// console.log("body",req.body)
-    /* ================= BASIC VALIDATION ================= */
+    // BASIC VALIDATION
 
     if (!type || !fullName || !phone || !email) {
       return res.status(400).json({
@@ -35,7 +33,7 @@ export const createVisitor = async (req, res) => {
       });
     }
 
-    /* ================= BUILD CLEAN PAYLOAD ================= */
+    // BUILD CLEAN PAYLOAD
 
     const visitorData = {
       type,
@@ -50,8 +48,7 @@ export const createVisitor = async (req, res) => {
       remarks: remarks || "",
       status: "pending", // always default
     };
-// console.log("visitorData",visitorData)
-    /* ================= CONDITIONAL FIELDS ================= */
+    // CONDITIONAL FIELDS
 
     // If Candidate → add technology
     if (type === "candidate" && technology) {
@@ -68,7 +65,7 @@ export const createVisitor = async (req, res) => {
       visitorData.jobSource = jobSource || "";
     }
 
-    /* ================= SAVE ================= */
+    // SAVE
 
     const visitor = new Visitor(visitorData);
     await visitor.save();
@@ -86,7 +83,7 @@ export const createVisitor = async (req, res) => {
   }
 };
 
-/* ================= GET WITH FILTER ================= */
+// GET WITH FILTER
 
 export const getVisitors = async (req, res) => {
   try {
@@ -134,9 +131,8 @@ export const getVisitors = async (req, res) => {
   }
 };
 
-
-/* ================= GET BY ID ================= */
-/* ================= GET VISITOR BY ID ================= */
+// GET BY ID
+// GET VISITOR BY ID
 
 export const getVisitorById = async (req, res) => {
   try {
@@ -171,13 +167,10 @@ export const getVisitorById = async (req, res) => {
   }
 };
 
-
-/* ================= APPROVE + SET PASSWORD ================= */
+// APPROVE + SET PASSWORD
 export const updateVisitorStatus = async (req, res) => {
-  console.log("api updateVisitorStatus")
   try {
     const { status, password } = req.body;
-    console.log(status, password)
 
     const visitor = await Visitor.findById(req.params.id);
 

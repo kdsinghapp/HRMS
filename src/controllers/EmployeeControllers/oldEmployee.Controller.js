@@ -4,6 +4,26 @@ import { uploadToCloudinary } from "../../utils/uploadToCloudinary.js";
 import qs from "qs";
 import { createAuditLog } from './../../services/audit.service.js';
 
+// SECURITY: OldEmployee documents carry three credential-shaped fields
+// (account.loginPassword, account.officialEmail's paired
+// account.officialPassword, and account.teamsPassword) — the last two are
+// stored in PLAIN TEXT and none of the list/detail queries below used to
+// select them out, so every "get employee(s)" response was leaking a
+// hashed login password plus two real, usable plaintext passwords per
+// employee. Run every outgoing employee object through this before
+// sending it to the client.
+const sanitizeEmployee = (doc) => {
+  if (!doc) return doc;
+  const obj = typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
+  if (obj.account) {
+    delete obj.account.loginPassword;
+    delete obj.account.officialPassword;
+    delete obj.account.teamsPassword;
+  }
+  delete obj.password; // in case this is a "new" Employee-model doc
+  return obj;
+};
+
 // Helper to generate employee ID
 const generateEmployeeId = (employeeData, lastCount = 0) => {
   const fullName = employeeData.personal?.fullName || "";
@@ -32,8 +52,56 @@ const generateEmployeeId = (employeeData, lastCount = 0) => {
   return `${firstLetter}${lastLetter}${companyLetter}${currentYear}${sequence}`;
 };
 
-// ==================== CREATE EMPLOYEE ====================
+// CREATE EMPLOYEE
 import bcrypt from "bcrypt";
+
+// 🔥 FIX: strip empty-string values ("") recursively before saving.
+// Without this, empty strings coming from untouched form fields (e.g. an
+// unselected "Employment Type" dropdown, or a blank Date of Birth / Date of
+// Joining input) get sent straight to Mongoose. Mongoose then throws a
+// CastError ("Cast to date failed for value \"\"") or a ValidationError
+// ("`` is not a valid enum value") and the whole create request fails with
+// a 500 error. The update controller already avoided this via its
+// flattenObject() filter — create() didn't have the same protection.
+const removeEmptyStrings = (obj) => {
+  if (Array.isArray(obj)) {
+    return obj.map(removeEmptyStrings);
+  }
+
+  if (obj && typeof obj === "object" && !(obj instanceof Date)) {
+    const cleaned = {};
+
+    for (const key of Object.keys(obj)) {
+      const value = obj[key];
+
+      if (value === "") continue; // drop blank fields, let schema defaults apply
+
+      const cleanedValue =
+        value && typeof value === "object" ? removeEmptyStrings(value) : value;
+
+      // 🔥 FIX: drop values that reduce to an empty object (e.g. an untouched
+      // file input like "documents[aadharCard]" with no file selected gets
+      // parsed by qs into {} instead of being omitted). Passing {} through
+      // makes Mongoose try to cast it to String and throw:
+      // "Cast to string failed for value \"{}\" (type Object)".
+      if (
+        cleanedValue &&
+        typeof cleanedValue === "object" &&
+        !Array.isArray(cleanedValue) &&
+        !(cleanedValue instanceof Date) &&
+        Object.keys(cleanedValue).length === 0
+      ) {
+        continue;
+      }
+
+      cleaned[key] = cleanedValue;
+    }
+
+    return cleaned;
+  }
+
+  return obj;
+};
 
 export const createEmployee = async (req, res) => {
   try {
@@ -98,7 +166,7 @@ export const createEmployee = async (req, res) => {
       delete employeeData.address.sameAsCurrent;
     }
 
-    // ================= NEW FIELD FIX =================
+    // NEW FIELD FIX
 
     // ✅ Ensure account object exists
     if (!employeeData.account) employeeData.account = {};
@@ -113,7 +181,7 @@ export const createEmployee = async (req, res) => {
       employeeData.account.loginPassword = hashedPassword;
     }
 
-    // ================= BANK FIX =================
+    // BANK FIX
 
     if (!employeeData.bank) employeeData.bank = {};
 
@@ -123,9 +191,16 @@ export const createEmployee = async (req, res) => {
         employeeData.personal?.fullName || "";
     }
 
-    // ================= EMPLOYEE ID =================
+    // EMPLOYEE ID
 
     if (!employeeData.professional) employeeData.professional = {};
+
+    // 🔒 ROLE SAFETY: employees created here (by HR) always get exactly one
+    // role — "employee". Any `role` / `roles` value sent in the request body
+    // is ignored so a form submission can never grant hr/admin access.
+    // HR and Admin accounts are provisioned only via the seed script.
+    delete employeeData.role;
+    employeeData.roles = ["employee"];
 
     let employeeId;
     let isUnique = false;
@@ -152,11 +227,13 @@ export const createEmployee = async (req, res) => {
 
     employeeData.professional.employeeId = employeeId;
 
-    // ================= SAVE =================
+    // SAVE
 
-    const employee = await OldEmployee.create(employeeData);
+    const cleanedEmployeeData = removeEmptyStrings(employeeData);
 
-    // ========= Audit log ================= //
+    const employee = await OldEmployee.create(cleanedEmployeeData);
+
+    // Audit log
     await createAuditLog({
       user: req.user,
       action: "CREATE",
@@ -167,20 +244,18 @@ export const createEmployee = async (req, res) => {
       req,
     });
 
-   res.status(201).json({
+
+    res.status(201).json({
       message: "Employee created successfully",
       data: employee,
     });
 
   } catch (error) {
-    console.error("Create Employee Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// ==================== UPDATE EMPLOYEE ====================
-
-
+// UPDATE EMPLOYEE
 
 export const updateEmployee = async (req, res) => {
   try {
@@ -189,7 +264,7 @@ export const updateEmployee = async (req, res) => {
     // ✅ FIX 1
     const nestedBody = qs.parse(req.body);
 
-    /* -------- Profile Photo Upload -------- */
+    // Profile Photo Upload
 
     if (files["personal[profilePhoto]"]) {
       try {
@@ -206,11 +281,10 @@ export const updateEmployee = async (req, res) => {
         };
 
       } catch (err) {
-        console.error("Profile upload failed:", err);
       }
     }
 
-    /* -------- Documents Upload -------- */
+    // Documents Upload
 
     const docFields = [
       "aadharCard",
@@ -238,7 +312,6 @@ export const updateEmployee = async (req, res) => {
           documents[field] = result.secure_url;
 
         } catch (err) {
-          console.error(`Upload failed for ${field}:`, err);
         }
       }
     }
@@ -253,13 +326,18 @@ export const updateEmployee = async (req, res) => {
       };
     }
 
-    /* -------- Remove temporary field -------- */
+    // Remove temporary field
 
     if (nestedBody.address?.sameAsCurrent !== undefined) {
       delete nestedBody.address.sameAsCurrent;
     }
 
-    /* -------- Flatten -------- */
+    // 🔒 ROLE SAFETY: roles are never editable through the general employee
+    // update form — prevents privilege escalation via this endpoint.
+    delete nestedBody.role;
+    delete nestedBody.roles;
+
+    // Flatten
 
     const flattenObject = (obj, prefix = "", res = {}) => {
       for (let key in obj) {
@@ -285,7 +363,7 @@ export const updateEmployee = async (req, res) => {
 
     const updateData = flattenObject(nestedBody);
 
-    /* -------- Update -------- */
+    // Update
 
     const updatedEmployee = await OldEmployee.findByIdAndUpdate(
       req.params.id,
@@ -303,31 +381,29 @@ export const updateEmployee = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Update Employee Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// ==================== GET ALL EMPLOYEES (NEW + OLD) ====================
+// GET ALL EMPLOYEES (NEW + OLD)
 export const getAllEmployees = async (req, res) => {
- try {
+  try {
     const newEmployees = await Employee.find().lean();
     const oldEmployees = await OldEmployee.find().lean();
 
     const formattedNew = newEmployees.map((emp) => ({
-      ...emp,
+      ...sanitizeEmployee(emp),
       employeeType: "new",
     }));
 
     const formattedOld = oldEmployees.map((emp) => ({
-      ...emp,
+      ...sanitizeEmployee(emp),
       employeeType: "old",
     }));
 
     const allEmployees = [...formattedNew, ...formattedOld].sort(
       (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
-// console.log("Total employees fetched:", allEmployees);
     res.status(200).json({
       success: true,
       count: allEmployees.length,
@@ -341,25 +417,43 @@ export const getAllEmployees = async (req, res) => {
   }
 };
 
-// ==================== GET ALL OLD EMPLOYEES (LEGACY) ====================
+// GET ALL OLD EMPLOYEES (LEGACY)
 export const getEmployees = async (req, res) => {
   try {
     const employees = await OldEmployee.find().sort({ createdAt: -1 });
-    res.json(employees);
+    res.json(employees.map(sanitizeEmployee));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// ==================== GET EMPLOYEE BY ID (NEW MODEL) ====================
+// GET EMPLOYEE BY ID (NEW MODEL)
 export const getEmployeeById = async (req, res) => {
-
   try {
-    const employee = await OldEmployee.findById(req.params.id);
-    if (!employee) return res.status(404).json({ message: "Employee not found" });
-    res.json(employee);
+    // Employees can live in either the classic "OldEmployee" directory
+    // or the newer "Employee" collection (see getAllEmployees, which
+    // already combines both). Check both instead of assuming one.
+    let employee = await OldEmployee.findById(req.params.id);
+    let employeeType = "old";
+
+    if (!employee) {
+      employee = await Employee.findById(req.params.id);
+      employeeType = "new";
+    }
+
+    if (!employee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { ...sanitizeEmployee(employee), employeeType },
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

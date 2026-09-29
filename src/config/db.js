@@ -9,16 +9,13 @@ const connectDB = async () => {
     }
 
     const conn = await mongoose.connect(mongoURI, {
-      autoIndex: false, // production ke liye better
+      autoIndex: false, // disabled for better production performance
       serverSelectionTimeoutMS: 5000,
     });
 
-    console.log(
-      `✅ MongoDB Connected successfully`
-    );
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error("❌ MongoDB connection failed");
-    console.error(error.message);
+    console.error(`MongoDB connection error: ${error.message}`);
 
     // production-grade apps me process exit kar dete hain
     process.exit(1);

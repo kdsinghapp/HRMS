@@ -1,15 +1,10 @@
-import Leave from "../../models/Leave.js";
+import Leave from "../../models/leave.model.js";
+import { notifyHrAndAdmin, notifyRoles } from "../../services/notification.service.js";
 
-// ================= CREATE LEAVE =================
+// CREATE LEAVE
 export const createLeave = async (req, res) => {
   try {
-    const {
-      leaveType,
-      leaveMode,
-      reason,
-      emergencyContact,
-      dates,
-    } = req.body;
+    const { leaveType, leaveMode, reason, emergencyContact, dates } = req.body;
 
     const employeeId = req.user.id;
 
@@ -44,13 +39,38 @@ export const createLeave = async (req, res) => {
       dates: formattedDates,
     });
 
+    // Notify HR / Admin — except when the applicant is themselves an HR
+    // user, in which case their leave request is Admin's call only and
+    // shouldn't go to (or be actionable by) their fellow HR colleagues.
+    const applicantRoles = req.user.roles || [];
+    const applicantIsHr =
+      applicantRoles.includes("hr") && !applicantRoles.includes("admin");
+
+    if (applicantIsHr) {
+      await notifyRoles({
+        roles: ["admin"],
+        title: "New Leave Request",
+        message: `${req.user.name || "An HR member"} applied for ${leaveType}`,
+        type: "LEAVE",
+        link: "/hr/leave",
+        createdBy: employeeId,
+      });
+    } else {
+      await notifyHrAndAdmin({
+        title: "New Leave Request",
+        message: `${req.user.name || "An employee"} applied for ${leaveType}`,
+        type: "LEAVE",
+        link: "/hr/leave",
+        createdBy: employeeId,
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: "Leave request submitted",
       data: leave,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({
       success: false,
       message: "Server error",
@@ -58,7 +78,7 @@ export const createLeave = async (req, res) => {
   }
 };
 
-// ================= GET MY LEAVES =================
+// GET MY LEAVES
 export const getMyLeaves = async (req, res) => {
   try {
     const leaves = await Leave.find({
@@ -67,7 +87,6 @@ export const getMyLeaves = async (req, res) => {
 
     res.json({ success: true, data: leaves });
   } catch (error) {
-    console.error(error);
     res.status(500).json({
       success: false,
       message: "Server error",
@@ -75,7 +94,7 @@ export const getMyLeaves = async (req, res) => {
   }
 };
 
-// ================= CANCEL LEAVE =================
+// CANCEL LEAVE
 export const cancelLeave = async (req, res) => {
   try {
     const { leaveId } = req.params;
@@ -89,7 +108,7 @@ export const cancelLeave = async (req, res) => {
       });
     }
 
-    if (leave.status !== "PENDING") {
+    if (leave.status !== "PENDING" && leave.status !== "PENDING_HR" && leave.status !== "PENDING_ADMIN") {
       return res.status(400).json({
         success: false,
         message: "Only pending leave can be cancelled",
@@ -104,7 +123,6 @@ export const cancelLeave = async (req, res) => {
       message: "Leave cancelled successfully",
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({
       success: false,
       message: "Server error",

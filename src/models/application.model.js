@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-/* ================= ENUM ARRAYS ================= */
+// ENUM ARRAYS
 
 const experienceOptions = [
   "Less than 1 year",
@@ -18,7 +18,7 @@ const experienceOptions = [
 
 const applicationSchema = new mongoose.Schema(
   {
-    /* ================= JOB LINK ================= */
+    // JOB LINK
 
     job: {
       type: mongoose.Schema.Types.ObjectId,
@@ -27,7 +27,7 @@ const applicationSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* ================= COMMON CANDIDATE FIELDS ================= */
+    // COMMON CANDIDATE FIELDS
 
     fullName: {
       type: String,
@@ -85,7 +85,7 @@ const applicationSchema = new mongoose.Schema(
       default: "Online",
     },
 
-    /* ================= APPLICATION SPECIFIC ================= */
+    // APPLICATION SPECIFIC
 
     coverLetter: {
       type: String,

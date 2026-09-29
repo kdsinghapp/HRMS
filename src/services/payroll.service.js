@@ -6,129 +6,9 @@ import Payslip from "../models/payslip.model.js";
 import OldEmployee from "../models/oldEmployee.model.js";
 
 /**
- * Calculates monthly payroll details for a single employee based on salary structure and attendance.
- * Does NOT persist to database.
+ * Calculates monthly payroll for one employee from their salary structure
+ * and attendance records. Does not persist to the database.
  */
-// export const calculatePayrollDetails = async (employeeId, month, year) => {
-//   // 1. Fetch Employee
-//   const employee = await OldEmployee.findById(employeeId);
-//   if (!employee) {
-//     throw new Error(`Employee with ID ${employeeId} not found`);
-//   }
-
-//   // 2. Fetch Salary Structure
-//   const salaryStructure = await SalaryStructure.findOne({ employee: employeeId });
-//   if (!salaryStructure) {
-//     throw new Error(`Salary structure for employee ${employee.name} (${employee.employeeCode}) not found`);
-//   }
-
-//   // 3. Determine Total Calendar Days in Month (Total Working Days)
-//   const totalWorkingDays = new Date(year, month, 0).getDate();
-//   if (totalWorkingDays <= 0) {
-//     throw new Error("Total working days in month must be greater than 0");
-//   }
-
-//   // 4. Retrieve Attendance Aggregation
-//   const startOfMonth = new Date(Date.UTC(year, month - 1, 1));
-//   const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
-
-//   const attendanceSummary = await Attendance.aggregate([
-//     {
-//       $match: {
-//         employee: new mongoose.Types.ObjectId(employeeId),
-//         date: { $gte: startOfMonth, $lte: endOfMonth }
-//       }
-//     },
-//     {
-//       $group: {
-//         _id: null,
-//         present: { $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] } },
-//         absent: { $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] } },
-//         halfDay: { $sum: { $cond: [{ $eq: ["$status", "half-day"] }, 1, 0] } },
-//         leave: { $sum: { $cond: [{ $eq: ["$status", "leave"] }, 1, 0] } },
-//         paidLeave: { $sum: { $cond: [{ $eq: ["$status", "paid-leave"] }, 1, 0] } },
-//         unpaidLeave: { $sum: { $cond: [{ $eq: ["$status", "unpaid-leave"] }, 1, 0] } }
-//       }
-//     }
-//   ]);
-
-//   // Handle default counts if no attendance records exist
-//   const counts = attendanceSummary[0] || {
-//     present: 0,
-//     absent: 0,
-//     halfDay: 0,
-//     leave: 0,
-//     paidLeave: 0,
-//     unpaidLeave: 0
-//   };
-
-//   // 5. Calculate Payable Days:
-//   // Present + Paid Leaves + Generic Leaves + (Half Days * 0.5)
-//   const presentDays = counts.present;
-//   const absentDays = counts.absent;
-//   const halfDays = counts.halfDay;
-//   const paidLeaves = counts.paidLeave + counts.leave; // generic "leave" treated as paid leave
-//   const unpaidLeaves = counts.unpaidLeave;
-
-//   const payableDays = Math.min(
-//     totalWorkingDays,
-//     presentDays + paidLeaves + (halfDays * 0.5)
-//   );
-
-//   // 6. Salary Calculation Formulas
-//   const { basicSalary, hra, allowances, bonus, pf, esi, professionalTax, otherDeductions } = salaryStructure;
-
-//   const grossSalary = basicSalary + hra + allowances + bonus;
-//   const perDaySalary = grossSalary / totalWorkingDays;
-
-//   // Deductions
-//   const absentDeduction = Number((perDaySalary * absentDays).toFixed(2));
-//   const halfDayDeduction = Number(((perDaySalary / 2) * halfDays).toFixed(2));
-//   const unpaidLeaveDeduction = Number((perDaySalary * unpaidLeaves).toFixed(2));
-
-//   const totalDeductions = Number(
-//     (
-//       absentDeduction +
-//       halfDayDeduction +
-//       unpaidLeaveDeduction +
-//       pf +
-//       esi +
-//       professionalTax +
-//       otherDeductions
-//     ).toFixed(2)
-//   );
-
-//   const netSalary = Math.max(0, Number((grossSalary - totalDeductions).toFixed(2)));
-
-//   return {
-//     employee: employeeId,
-//     month,
-//     year,
-//     totalWorkingDays,
-//     presentDays,
-//     absentDays,
-//     halfDays,
-//     paidLeaves,
-//     unpaidLeaves,
-//     payableDays,
-//     basicSalary,
-//     hra,
-//     allowances,
-//     bonus,
-//     absentDeduction,
-//     halfDayDeduction,
-//     unpaidLeaveDeduction,
-//     pf,
-//     esi,
-//     professionalTax,
-//     otherDeductions,
-//     grossSalary,
-//     perDaySalary: Number(perDaySalary.toFixed(2)),
-//     totalDeductions,
-//     netSalary
-//   };
-// };
-
 export const calculatePayrollDetails = async (employeeId, month, year) => {
   // 1. Employee
   const employee = await OldEmployee.findById(employeeId);
@@ -380,18 +260,12 @@ export const generateMonthlyPayrollBatch = async (month, year) => {
     "professional.status": "Active",
   });
 
-  console.log(`Active Employees Found: ${employees.length}`);
-
   let createdCount = 0;
   let skippedCount = 0;
   const errors = [];
 
   for (const emp of employees) {
     try {
-      console.log(
-        `Processing: ${emp.personal?.fullName} (${emp._id})`
-      );
-
       // Already generated?
       const existing = await Payroll.findOne({
         employee: emp._id,

@@ -38,17 +38,39 @@ const leaveSchema = new mongoose.Schema(
     // 🔥 NEW FIELDS
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "CANCELLED"],
-      default: "PENDING",
+      enum: ["PENDING", "PENDING_HR", "PENDING_ADMIN", "APPROVED", "REJECTED", "CANCELLED"],
+      default: "PENDING_HR",
     },
 
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "OldEmployee", // manager/admin
+      ref: "OldEmployee", // hr/admin
       default: null,
     },
 
     approvedAt: {
+      type: Date,
+      default: null,
+    },
+    
+    hrApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "OldEmployee",
+      default: null,
+    },
+
+    hrApprovedAt: {
+      type: Date,
+      default: null,
+    },
+
+    adminApprovedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "OldEmployee",
+      default: null,
+    },
+
+    adminApprovedAt: {
       type: Date,
       default: null,
     },
@@ -57,7 +79,7 @@ const leaveSchema = new mongoose.Schema(
       type: String,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Optimize query performance for employee history and status filters

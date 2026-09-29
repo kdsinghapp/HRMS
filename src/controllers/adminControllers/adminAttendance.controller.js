@@ -1,5 +1,6 @@
-import Attendance from "../../models/Attendance.js";
-import { createAuditLog } from "../../services/audit.service.js";
+
+import Attendance from "../../models/attendance.model.js";
+import { combineISTDateTime } from "../../utils/officeSchedule.js";
 
 export const getAttendanceByDate = async (req, res) => {
   try {
@@ -26,22 +27,148 @@ export const getAttendanceByDate = async (req, res) => {
       data: attendanceList,
     });
   } catch (error) {
-    console.error("ADMIN ATTENDANCE ERROR 👉", error);
     res.status(500).json({ message: "Failed to fetch attendance" });
   }
 };
 
-/**
- * GET /admin/attendance/employee/:employeeId
- */
+
+// GET /admin/attendance/employee/:employeeId
+// Optional ?year=&month= narrows to that month; used by the HR attendance calendar.
+// Without them, returns full history.
 export const getAttendanceByEmployee = async (req, res) => {
+
   try {
-    const attendance = await Attendance.find({
-      employee: req.params.employeeId,
-    }).sort({ date: -1 });
+    const { year, month } = req.query;
+
+    const filter = { employee: req.params.employeeId };
+
+    if (year && month) {
+      const start = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
+      const end = new Date(Date.UTC(Number(year), Number(month), 0, 23, 59, 59, 999));
+      filter.date = { $gte: start, $lte: end };
+    }
+
+    const attendance = await Attendance.find(filter).sort({ date: -1 });
+
     res.status(200).json({ success: true, data: attendance });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// PUT /admin/attendance/employee/:employeeId
+// body: { date, status, checkIn, checkOut, remarks }
+// HR-only: create or edit one day's attendance record (upsert).
+export const updateAttendanceByEmployee = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { date, status, checkIn, checkOut, remarks } = req.body;
+
+    if (!employeeId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Employee id is required" });
+    }
+
+    if (!date) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Date is required" });
+    }
+
+    const allowedStatuses = [
+      "present",
+      "absent",
+      "half-day",
+      "leave",
+      "paid-leave",
+      "unpaid-leave",
+      // Pseudo-status — not actually stored. Picking it just means
+      // "this day never had a record", so HR can wipe out a bad entry
+      // instead of only being able to reassign it to another status.
+      "no-record",
+    ];
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: "Invalid status" });
+    }
+
+    // Normalize date to UTC midnight — matches how attendance dates are
+    // stored everywhere else (see getAttendanceByDate above).
+    const cleanDate = date.includes("T") ? date.split("T")[0] : date;
+    const [yearVal, monthVal, dayVal] = cleanDate.split("-").map(Number);
+    const normalizedDate = new Date(Date.UTC(yearVal, monthVal - 1, dayVal));
+
+    // "No record" — HR wants to clear this day entirely rather than
+    // change it to another status. Delete whatever's there (if anything)
+    // and stop, instead of falling through to the upsert logic below.
+    if (status === "no-record") {
+      await Attendance.findOneAndDelete({
+        employee: employeeId,
+        date: normalizedDate,
+      });
+      return res.status(200).json({
+        success: true,
+        message: "Attendance record cleared",
+        data: null,
+      });
+    }
+
+    let attendance = await Attendance.findOne({
+      employee: employeeId,
+      date: normalizedDate,
+    });
+
+    if (!attendance) {
+      attendance = new Attendance({ employee: employeeId, date: normalizedDate });
+    }
+
+    // Check-in / Check-out — HH:mm (IST wall-clock) combined with the
+    // record's own date. An explicit empty string clears the time;
+    // undefined leaves it as-is.
+    if (checkIn) {
+      attendance.checkIn = combineISTDateTime(cleanDate, checkIn);
+    } else if (checkIn === "") {
+      attendance.checkIn = null;
+    }
+
+    if (checkOut) {
+      attendance.checkOut = combineISTDateTime(cleanDate, checkOut);
+    } else if (checkOut === "") {
+      attendance.checkOut = null;
+    }
+
+    // Recalculate total hours whenever both times end up present.
+    if (attendance.checkIn && attendance.checkOut) {
+      const hours =
+        (attendance.checkOut - attendance.checkIn) / (1000 * 60 * 60);
+      attendance.totalHours = Number(Math.max(hours, 0).toFixed(2));
+    } else {
+      attendance.totalHours = 0;
+    }
+
+    // HR's chosen status is a manual override and always wins here.
+    if (status) {
+      attendance.status = status;
+    }
+
+    if (remarks !== undefined) {
+      attendance.remarks = remarks;
+    }
+
+    attendance.approvedBy = req.user?.id || attendance.approvedBy;
+
+    await attendance.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Attendance updated successfully",
+      data: attendance,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update attendance",
+    });
   }
 };
 
@@ -93,94 +220,5 @@ export const getAttendanceStats = async (req, res) => {
     res.status(200).json({ success: true, data: response });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const updateAttendanceByEmpId = async (req, res) => {
-  const { employeeId } = req.params;
-
-  try {
-    const attendance = await Attendance.findOne({
-      employee: employeeId,
-      date: req.body.date, // ya today's date
-    });
-
-    if (!attendance) {
-      return res.status(404).json({
-        success: false,
-        message: "Attendance not found",
-      });
-    }
-
-    const oldData = attendance.toObject();
-
-    const { status } = req.body;
-
-    let checkIn = null;
-    let checkOut = null;
-    let workingHours = 0;
-
-    // Today's date
-    const today = new Date();
-
-    switch (status) {
-      case "present":
-        checkIn = new Date(today);
-        checkIn.setHours(10, 0, 0, 0);
-
-        checkOut = new Date(today);
-        checkOut.setHours(20, 0, 0, 0);
-
-        workingHours = 10;
-        break;
-
-      case "half-day":
-        checkIn = new Date(today);
-        checkIn.setHours(10, 0, 0, 0);
-
-        checkOut = new Date(today);
-        checkOut.setHours(15, 0, 0, 0);
-
-        workingHours = 5;
-        break;
-
-      case "absent":
-      case "leave":
-      case "paid-leave":
-      case "unpaid-leave":
-        checkIn = null;
-        checkOut = null;
-        workingHours = 0;
-        break;
-    }
-
-    attendance.status = status;
-    attendance.checkIn = checkIn;
-    attendance.checkOut = checkOut;
-    attendance.workingHours = workingHours;
-
-    await attendance.save();
-
-    // Audit Log
-    await createAuditLog({
-      user: req.user,
-      action: "UPDATE",
-      module: "ATTENDANCE",
-      recordId: attendance._id,
-      oldData,
-      newData: attendance.toObject(),
-      req,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Attendance updated successfully.",
-      data: attendance,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
   }
 };

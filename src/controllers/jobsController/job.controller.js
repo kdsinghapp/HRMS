@@ -1,11 +1,8 @@
-// import Job from "../models/Job.js";
 import mongoose from "mongoose";
 import slugify from "slugify";
 import Job from "../../models/job.model.js";
 
-
-// import jobModel from "../../models/job.model.js";
-/* ================= CREATE JOB ================= */
+// CREATE JOB
 
 export const createJob = async (req, res) => {
   try {
@@ -34,7 +31,7 @@ export const createJob = async (req, res) => {
       visibility,
       status,
     } = req.body;
-let currentUser_id = req.user.id.toString();
+    let currentUser_id = req.user.id.toString();
     const job = new Job({
       title,
       department,
@@ -78,8 +75,7 @@ let currentUser_id = req.user.id.toString();
   }
 };
 
-/* ================= UPDATE JOB ================= */
-
+// UPDATE JOB
 
 export const updateJob = async (req, res) => {
   try {
@@ -101,8 +97,6 @@ export const updateJob = async (req, res) => {
         message: "Job not found",
       });
     }
-console.log("Job Posted By:", job.postedBy.toString());
-console.log("Current User ID:", req.user.id.toString());
     // Ownership check
     if (job.postedBy.toString() !== req.user.id.toString()) {
       return res.status(403).json({
@@ -112,24 +106,11 @@ console.log("Current User ID:", req.user.id.toString());
     }
 
     // Prevent editing closed jobs
-// if (job.status === "Closed") {
-//   const allowedFields = ["status"];
 
-//   const updateFields = Object.keys(req.body).filter(
-//     (field) => field !== "_id"
-//   );
+    //     (field) => field !== "_id"
 
-//   const isOnlyStatusUpdate = updateFields.every((field) =>
-//     allowedFields.includes(field)
-//   );
-
-//   if (!isOnlyStatusUpdate) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Closed jobs can only update status",
-//     });
-//   }
-// }
+    //       success: false,
+    //       message: "Closed jobs can only update status",
 
     const updateData = { ...req.body };
 
@@ -154,23 +135,17 @@ console.log("Current User ID:", req.user.id.toString());
       });
     }
 
-    const updatedJob = await Job.findByIdAndUpdate(
-      id,
-      updateData,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    const updatedJob = await Job.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
     return res.status(200).json({
       success: true,
       message: "Job updated successfully",
       data: updatedJob,
     });
-
   } catch (error) {
-    console.error("Update Job Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -179,10 +154,9 @@ console.log("Current User ID:", req.user.id.toString());
   }
 };
 
-/* ================= DELETE JOB (SOFT DELETE) ================= */
+// DELETE JOB (SOFT DELETE)
 
 export const deleteJob = async (req, res) => {
-  // console.log("deleteJob")
   try {
     const { id } = req.params;
 
@@ -225,9 +199,7 @@ export const deleteJob = async (req, res) => {
       success: true,
       message: "Job deleted permanently",
     });
-
   } catch (error) {
-    console.error("Delete Job Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -236,7 +208,7 @@ export const deleteJob = async (req, res) => {
   }
 };
 
-/* ================= GET ALL JOBS (ADMIN) ================= */
+// GET ALL JOBS (ADMIN)
 export const getAllJobs = async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
@@ -246,13 +218,9 @@ export const getAllJobs = async (req, res) => {
       isActive: true,
     };
 
-    // const query = {};
-
     if (status) {
       query.status = status;
     }
-
-    // const jobs = await Job.find(query) // ✅ query yaha use karo
 
     const jobs = await Job.find()
       .populate("requiredSkills goodToHaveSkills")
@@ -276,16 +244,16 @@ export const getAllJobs = async (req, res) => {
   }
 };
 
-/* ================= GET SINGLE JOB BY SLUG ================= */
+// GET SINGLE JOB BY SLUG
 export const getJobBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
 
     const job = await Job.findOne({
       slug,
-      status: "Published",     // Only published jobs
-      visibility: "Public",    // Only public jobs
-      isActive: true,          // Only active jobs
+      status: "Published", // Only published jobs
+      visibility: "Public", // Only public jobs
+      isActive: true, // Only active jobs
     });
 
     if (!job) {
@@ -299,7 +267,6 @@ export const getJobBySlug = async (req, res) => {
       success: true,
       data: job,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -307,4 +274,3 @@ export const getJobBySlug = async (req, res) => {
     });
   }
 };
-
