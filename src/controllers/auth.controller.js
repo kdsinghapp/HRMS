@@ -6,6 +6,8 @@ import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { verifyEmailOtpTemplate } from "../utils/emailTemplates/verifyEmailOtp.js";
 import Employee from "../models/employee.model.js";
 import OldEmployee from "../models/oldEmployee.model.js";
+import { createAuditLog } from "../services/audit.service.js";
+
 
 // LOGIN
 
@@ -41,6 +43,26 @@ export const login = async (req, res) => {
     // 🔥 TOKEN (OPTIONAL - if you already have functions)
     const accessToken = generateAccessToken(employeeDoc);
     const refreshToken = generateRefreshToken(employeeDoc);
+
+    await createAuditLog({
+      user: {
+        id: employeeDoc._id,
+        name: employeeDoc.personal?.fullName,
+        email: employeeDoc.account?.officialEmail,
+        roles: employeeDoc.roles,
+      },
+      action: "LOGIN",
+      module: "AUTH",
+      recordId: employeeDoc._id,
+      description: `User logged in: ${employeeDoc.personal?.fullName || normalizedEmail}`,
+      oldData: null,
+      newData: {
+        officialEmail: employeeDoc.account?.officialEmail,
+        roles: employeeDoc.roles,
+        employeeId: employeeDoc.professional?.employeeId,
+      },
+      req,
+    });
 
     res
       .cookie("refreshToken", refreshToken, {
@@ -134,11 +156,23 @@ export const changePassword = async (req, res) => {
 
     await employeeDoc.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "AUTH",
+      recordId: employeeDoc._id,
+      description: `User changed account password`,
+      oldData: null,
+      newData: { passwordChanged: true },
+      req,
+    });
+
     res.json({ message: "Password changed successfully" });
   } catch (error) {
     res.status(500).json({ message: "Password change failed" });
   }
 };
+
 
 // SEND EMAIL OTP
 export const sendEmailOTP = async (req, res) => {

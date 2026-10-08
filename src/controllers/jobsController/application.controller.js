@@ -94,6 +94,17 @@ export const applyForJob = async (req, res) => {
       $inc: { totalApplications: 1 },
     });
 
+    await createAuditLog({
+      user: { name: fullName, email },
+      action: "CREATE",
+      module: "APPLICATION",
+      recordId: application._id,
+      description: `New candidate applied for job: ${fullName} (${job.title})`,
+      oldData: null,
+      newData: application.toObject(),
+      req,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Application submitted successfully",
@@ -106,6 +117,7 @@ export const applyForJob = async (req, res) => {
     });
   }
 };
+
 
 // GET ALL APPLICATIONS (ADMIN)
 export const getAllApplications = async (req, res) => {
@@ -249,7 +261,7 @@ export const getSingleApplication = async (req, res) => {
 // DELETE APPLICATION (ADMIN)
 export const deleteApplication = async (req, res) => {
   try {
-    const application = await Application.findByIdAndDelete(req.params.id);
+    const application = await Application.findById(req.params.id);
 
     if (!application) {
       return res.status(404).json({
@@ -257,6 +269,20 @@ export const deleteApplication = async (req, res) => {
         message: "Application not found",
       });
     }
+
+    const oldData = application.toObject();
+    await Application.findByIdAndDelete(req.params.id);
+
+    await createAuditLog({
+      user: req.user,
+      action: "DELETE",
+      module: "APPLICATION",
+      recordId: req.params.id,
+      description: `Deleted job application for ${application.fullName}`,
+      oldData,
+      newData: null,
+      req,
+    });
 
     res.json({
       success: true,
@@ -269,4 +295,5 @@ export const deleteApplication = async (req, res) => {
     });
   }
 };
+
 

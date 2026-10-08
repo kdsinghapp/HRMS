@@ -3,6 +3,7 @@ import Support from "../models/support.model.js";
 import { notifyHrAndAdmin } from "../services/notification.service.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { isHrOrAdmin } from "../middlewares/role.middleware.js";
+import { createAuditLog } from "../services/audit.service.js";
 
 const router = express.Router();
 
@@ -24,6 +25,17 @@ router.post("/create", authMiddleware, async (req, res) => {
       message,
     });
 
+    await createAuditLog({
+      user: req.user,
+      action: "CREATE",
+      module: "SUPPORT",
+      recordId: newTicket._id,
+      description: `Created support ticket: ${category || "General"}`,
+      oldData: null,
+      newData: newTicket.toObject(),
+      req,
+    });
+
     // Notify HR / Admin
     await notifyHrAndAdmin({
       title: "New Support Ticket",
@@ -38,6 +50,7 @@ router.post("/create", authMiddleware, async (req, res) => {
       data: newTicket,
     });
   } catch (error) {
+
     console.error("Support create error:", error);
     res.status(500).json({
       success: false,

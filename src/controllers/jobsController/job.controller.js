@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import slugify from "slugify";
 import Job from "../../models/job.model.js";
+import { createAuditLog } from "../../services/audit.service.js";
 
 // CREATE JOB
 
@@ -62,6 +63,17 @@ export const createJob = async (req, res) => {
 
     const savedJob = await job.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "CREATE",
+      module: "JOB",
+      recordId: savedJob._id,
+      description: `Created job posting: "${savedJob.title}"`,
+      oldData: null,
+      newData: savedJob.toObject(),
+      req,
+    });
+
     res.status(201).json({
       success: true,
       message: "Job created successfully",
@@ -105,12 +117,7 @@ export const updateJob = async (req, res) => {
       });
     }
 
-    // Prevent editing closed jobs
-
-    //     (field) => field !== "_id"
-
-    //       success: false,
-    //       message: "Closed jobs can only update status",
+    const oldData = job.toObject();
 
     const updateData = { ...req.body };
 
@@ -138,6 +145,17 @@ export const updateJob = async (req, res) => {
     const updatedJob = await Job.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
+    });
+
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "JOB",
+      recordId: updatedJob._id,
+      description: `Updated job posting: "${updatedJob.title}"`,
+      oldData,
+      newData: updatedJob.toObject(),
+      req,
     });
 
     return res.status(200).json({
@@ -193,7 +211,20 @@ export const deleteJob = async (req, res) => {
       });
     }
 
+    const oldData = job.toObject();
+
     await Job.findByIdAndDelete(id);
+
+    await createAuditLog({
+      user: req.user,
+      action: "DELETE",
+      module: "JOB",
+      recordId: id,
+      description: `Deleted job posting: "${job.title}"`,
+      oldData,
+      newData: null,
+      req,
+    });
 
     return res.status(200).json({
       success: true,
@@ -207,6 +238,7 @@ export const deleteJob = async (req, res) => {
     });
   }
 };
+
 
 // GET ALL JOBS (ADMIN)
 export const getAllJobs = async (req, res) => {

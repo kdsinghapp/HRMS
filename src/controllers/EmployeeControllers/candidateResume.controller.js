@@ -4,6 +4,7 @@ import CandidateResume, {
   candidateCategories,
 } from "../../models/candidateResume.model.js";
 import { uploadToCloudinary } from "../../utils/uploadToCloudinary.js";
+import { createAuditLog } from "../../services/audit.service.js";
 
 // GET CATEGORY MASTER LIST
 // Powers the single Category dropdown on the "Add Candidate" form. This is
@@ -77,12 +78,24 @@ export const createCandidateResume = async (req, res) => {
 
     await candidate.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "CREATE",
+      module: "RECRUITMENT",
+      recordId: candidate._id,
+      description: `Created candidate record: ${fullName || "Candidate"} (${category})`,
+      oldData: null,
+      newData: candidate.toObject(),
+      req,
+    });
+
     res.status(201).json({
       success: true,
       message: "Candidate resume saved successfully",
       data: candidate,
     });
   } catch (error) {
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -219,6 +232,8 @@ export const updateCandidateResume = async (req, res) => {
       });
     }
 
+    const oldData = candidate.toObject();
+
     candidate.fullName = fullName || "";
     candidate.phone = phone || "";
     candidate.email = email || "";
@@ -262,6 +277,17 @@ export const updateCandidateResume = async (req, res) => {
 
     await candidate.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "RECRUITMENT",
+      recordId: candidate._id,
+      description: `Updated candidate profile: ${candidate.fullName || "Candidate"}`,
+      oldData,
+      newData: candidate.toObject(),
+      req,
+    });
+
     res.status(200).json({
       success: true,
       message: "Candidate updated successfully",
@@ -289,18 +315,32 @@ export const updateCandidateResumeStatus = async (req, res) => {
       });
     }
 
+    const oldCandidate = await CandidateResume.findById(id);
+    if (!oldCandidate) {
+      return res.status(404).json({
+        success: false,
+        message: "Candidate record not found",
+      });
+    }
+
+    const oldData = oldCandidate.toObject();
+
     const candidate = await CandidateResume.findByIdAndUpdate(
       id,
       { status },
       { new: true, runValidators: true }
     );
 
-    if (!candidate) {
-      return res.status(404).json({
-        success: false,
-        message: "Candidate record not found",
-      });
-    }
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "RECRUITMENT",
+      recordId: candidate._id,
+      description: `Updated candidate ${candidate.fullName || "Candidate"} status to ${status}`,
+      oldData,
+      newData: candidate.toObject(),
+      req,
+    });
 
     res.status(200).json({
       success: true,
@@ -338,6 +378,8 @@ export const deleteCandidateResume = async (req, res) => {
       });
     }
 
+    const oldData = candidate.toObject();
+
     // Best-effort Cloudinary cleanup — if the asset is already gone /
     // Cloudinary errors out, we still proceed to delete the DB record so
     // HR isn't stuck with an un-deletable row.
@@ -356,6 +398,17 @@ export const deleteCandidateResume = async (req, res) => {
 
     await candidate.deleteOne();
 
+    await createAuditLog({
+      user: req.user,
+      action: "DELETE",
+      module: "RECRUITMENT",
+      recordId: id,
+      description: `Deleted candidate record: ${candidate.fullName || "Candidate"}`,
+      oldData,
+      newData: null,
+      req,
+    });
+
     res.status(200).json({
       success: true,
       message: "Candidate record deleted successfully",
@@ -367,3 +420,4 @@ export const deleteCandidateResume = async (req, res) => {
     });
   }
 };
+

@@ -4,6 +4,8 @@ import { isOfficeIP } from "../../utils/ip.utils.js";
 import mongoose from "mongoose";
 import Leave from "../../models/leave.model.js";
 import { isOfficeWeekOff } from "../../services/weekOff.service.js";
+import { createAuditLog } from "../../services/audit.service.js";
+
 
 // LEAVE GUARD HELPER
 // Returns the employee's PENDING or APPROVED leave record that covers
@@ -23,7 +25,7 @@ const getApprovedLeaveForDate = async (employeeId, forDate) => {
 
   return Leave.findOne({
     employeeId,
-    status: { $in: ["PENDING", "APPROVED"] },
+    status: { $in: ["PENDING", "PENDING_HR", "PENDING_ADMIN", "APPROVED"] },
     dates: dayStart,
   });
 };
@@ -115,6 +117,17 @@ export const checkIn = async (req, res) => {
 
     await attendance.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "CHECK_IN",
+      module: "ATTENDANCE",
+      recordId: attendance._id,
+      description: `Employee clocked in at ${checkIn.toLocaleTimeString("en-IN")}`,
+      oldData: null,
+      newData: { checkIn: attendance.checkIn, status: attendance.status, date: attendance.date },
+      req,
+    });
+
     res.status(200).json({
       success: true,
       message: "Check-in successful",
@@ -187,6 +200,13 @@ export const checkOut = async (req, res) => {
       });
     }
 
+    const oldData = {
+      checkIn: attendance.checkIn,
+      checkOut: null,
+      totalHours: attendance.totalHours,
+      status: attendance.status,
+    };
+
     // ✅ set checkout time
     attendance.checkOut = checkOut;
 
@@ -202,6 +222,22 @@ export const checkOut = async (req, res) => {
 
     await attendance.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "CHECK_OUT",
+      module: "ATTENDANCE",
+      recordId: attendance._id,
+      description: `Employee clocked out. Total hours: ${attendance.totalHours} hrs (${attendance.status})`,
+      oldData,
+      newData: {
+        checkIn: attendance.checkIn,
+        checkOut: attendance.checkOut,
+        totalHours: attendance.totalHours,
+        status: attendance.status,
+      },
+      req,
+    });
+
     res.status(200).json({
       success: true,
       message: "Check-out successful",
@@ -211,6 +247,7 @@ export const checkOut = async (req, res) => {
     res.status(500).json({ message: "Check-out failed" });
   }
 };
+
 
 // get My Attendance
 
@@ -293,7 +330,7 @@ export const getEmployeesAttendanceByDate = async (req, res) => {
         },
       }),
       Leave.find({
-        status: { $in: ["PENDING", "APPROVED"] },
+        status: { $in: ["PENDING", "PENDING_HR", "PENDING_ADMIN", "APPROVED"] },
         dates: targetDate,
       }),
     ]);
@@ -489,7 +526,7 @@ export const getMonthlyAttendanceSummary = async (req, res) => {
     // flow never showed up in the HR monthly summary card.
     const leaveDocs = await Leave.find({
       employeeId,
-      status: { $in: ["PENDING", "APPROVED"] },
+      status: { $in: ["PENDING", "PENDING_HR", "PENDING_ADMIN", "APPROVED"] },
       dates: { $elemMatch: { $gte: startDate, $lt: endDate } },
     });
 

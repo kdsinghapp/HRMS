@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const auditLogSchema = new mongoose.Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed, // string or ObjectId
       ref: "OldEmployee",
     },
 
@@ -12,43 +12,50 @@ const auditLogSchema = new mongoose.Schema(
       default: "System",
     },
 
+    userRole: {
+      type: String,
+      default: "",
+    },
+
+    userEmail: {
+      type: String,
+      default: "",
+    },
+
     action: {
       type: String,
-      enum: ["CREATE", "UPDATE", "DELETE", "VIEW", "LOGIN"],
       required: true,
+      trim: true,
+      uppercase: true,
     },
 
     module: {
       type: String,
-      enum: [
-        "EMPLOYEE",
-        "ATTENDANCE",
-        "LEAVE",
-        "PAYROLL",
-        "PAYSLIP",
-        "SALARY",
-        "SALARY_STRUCTURE",
-        "JOB",
-        "PERFORMANCE",
-        "RECRUITMENT",
-        "DOCUMENTS",
-        "USER",
-        "DEPARTMENT",
-        "DESIGNATION",
-        "SYSTEM_SETTINGS",
-      ],
       required: true,
+      trim: true,
+      uppercase: true,
+    },
+
+    description: {
+      type: String,
+      default: "",
     },
 
     recordId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
     },
 
     oldData: mongoose.Schema.Types.Mixed,
     newData: mongoose.Schema.Types.Mixed,
 
-    ipAddress: String,
-    userAgent: String,
+    ipAddress: {
+      type: String,
+      default: "",
+    },
+    userAgent: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );
@@ -57,5 +64,6 @@ const auditLogSchema = new mongoose.Schema(
 auditLogSchema.index({ userId: 1, createdAt: -1 });
 auditLogSchema.index({ module: 1, createdAt: -1 });
 auditLogSchema.index({ action: 1, createdAt: -1 });
+auditLogSchema.index({ createdAt: -1 });
 
 export default mongoose.model("AuditLog", auditLogSchema);

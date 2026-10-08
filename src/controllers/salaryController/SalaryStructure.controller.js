@@ -187,6 +187,16 @@ export const updateSalaryStructure = async (req, res) => {
   try {
     const { id } = req.params;
 
+    const existingStructure = await SalaryStructure.findById(id).populate("employee");
+    if (!existingStructure) {
+      return res.status(404).json({
+        success: false,
+        message: "Salary structure not found",
+      });
+    }
+
+    const oldData = existingStructure.toObject();
+
     const salaryStructure = await SalaryStructure.findByIdAndUpdate(
       id,
       req.body,
@@ -196,19 +206,14 @@ export const updateSalaryStructure = async (req, res) => {
       }
     ).populate("employee");
 
-    if (!salaryStructure) {
-      return res.status(404).json({
-        success: false,
-        message: "Salary structure not found",
-      });
-    }
-
     await createAuditLog({
       user: req.user,
       action: "UPDATE",
       module: "SALARY_STRUCTURE",
       recordId: salaryStructure._id,
-      newData: req.body,
+      description: `Updated salary structure for employee`,
+      oldData,
+      newData: salaryStructure.toObject(),
       req,
     });
 
@@ -224,6 +229,7 @@ export const updateSalaryStructure = async (req, res) => {
     });
   }
 };
+
 
 //================== delete Salary Structure ==================//
 export const deleteSalaryStructure = async (req, res) => {

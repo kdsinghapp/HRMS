@@ -53,6 +53,17 @@ export const registerEmployee = async (req, res) => {
       emailVerified: false,
     });
 
+    await createAuditLog({
+      user: { name, email },
+      action: "CREATE",
+      module: "EMPLOYEE",
+      recordId: employee._id,
+      description: `New candidate/employee registration: ${name} (${email})`,
+      oldData: null,
+      newData: { name, email, contactNo, role: "employee", status: "pending" },
+      req,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Registration successful. Waiting for HR approval.",
@@ -100,6 +111,9 @@ export const updateMyProfile = async (req, res) => {
     }
   });
 
+  const existingProfile = await Employee.findById(req.user.id).select("-password");
+  const oldData = existingProfile ? existingProfile.toObject() : null;
+
   const employee = await Employee.findByIdAndUpdate(
     req.user.id,
     updateData,
@@ -112,6 +126,8 @@ export const updateMyProfile = async (req, res) => {
       action: "UPDATE",
       module: "EMPLOYEE",
       recordId: employee._id,
+      description: `Updated profile details for ${employee.name}`,
+      oldData,
       newData: updateData,
       req,
     });
@@ -122,3 +138,4 @@ export const updateMyProfile = async (req, res) => {
     data: employee,
   });
 };
+

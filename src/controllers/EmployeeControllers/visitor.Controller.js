@@ -1,5 +1,7 @@
 import Visitor from "../../models/visitor.model.js";
 import mongoose from "mongoose";
+import { createAuditLog } from "../../services/audit.service.js";
+
 
 // CREATE
 
@@ -70,6 +72,17 @@ export const createVisitor = async (req, res) => {
     const visitor = new Visitor(visitorData);
     await visitor.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "CREATE",
+      module: "VISITOR",
+      recordId: visitor._id,
+      description: `Registered ${type} visitor: ${fullName}`,
+      oldData: null,
+      newData: visitor.toObject(),
+      req,
+    });
+
     res.status(201).json({
       success: true,
       message: "Visitor created successfully",
@@ -82,6 +95,7 @@ export const createVisitor = async (req, res) => {
     });
   }
 };
+
 
 // GET WITH FILTER
 
@@ -181,6 +195,8 @@ export const updateVisitorStatus = async (req, res) => {
       });
     }
 
+    const oldData = { status: visitor.status };
+
     // If approving, password required
     if (status === "approved") {
       if (!password) {
@@ -197,6 +213,17 @@ export const updateVisitorStatus = async (req, res) => {
 
     await visitor.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "VISITOR",
+      recordId: visitor._id,
+      description: `Updated visitor ${visitor.fullName} status to ${status}`,
+      oldData,
+      newData: { status },
+      req,
+    });
+
     res.json({
       success: true,
       message: `Visitor ${status} successfully`,
@@ -208,3 +235,4 @@ export const updateVisitorStatus = async (req, res) => {
     });
   }
 };
+

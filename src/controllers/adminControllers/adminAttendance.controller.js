@@ -1,6 +1,7 @@
 
 import Attendance from "../../models/attendance.model.js";
 import { combineISTDateTime } from "../../utils/officeSchedule.js";
+import { createAuditLog } from "../../services/audit.service.js";
 
 export const getAttendanceByDate = async (req, res) => {
   try {
@@ -102,10 +103,24 @@ export const updateAttendanceByEmployee = async (req, res) => {
     // change it to another status. Delete whatever's there (if anything)
     // and stop, instead of falling through to the upsert logic below.
     if (status === "no-record") {
-      await Attendance.findOneAndDelete({
+      const deletedRecord = await Attendance.findOneAndDelete({
         employee: employeeId,
         date: normalizedDate,
       });
+
+      if (deletedRecord) {
+        await createAuditLog({
+          user: req.user,
+          action: "DELETE",
+          module: "ATTENDANCE",
+          recordId: deletedRecord._id,
+          description: `Cleared attendance record for date ${cleanDate}`,
+          oldData: deletedRecord.toObject(),
+          newData: null,
+          req,
+        });
+      }
+
       return res.status(200).json({
         success: true,
         message: "Attendance record cleared",
@@ -117,6 +132,9 @@ export const updateAttendanceByEmployee = async (req, res) => {
       employee: employeeId,
       date: normalizedDate,
     });
+
+    const isNew = !attendance;
+    const oldData = attendance ? attendance.toObject() : null;
 
     if (!attendance) {
       attendance = new Attendance({ employee: employeeId, date: normalizedDate });
@@ -159,6 +177,17 @@ export const updateAttendanceByEmployee = async (req, res) => {
 
     await attendance.save();
 
+    await createAuditLog({
+      user: req.user,
+      action: isNew ? "CREATE" : "UPDATE",
+      module: "ATTENDANCE",
+      recordId: attendance._id,
+      description: `${isNew ? "Created" : "Updated"} attendance for date ${cleanDate} (${attendance.status})`,
+      oldData,
+      newData: attendance.toObject(),
+      req,
+    });
+
     res.status(200).json({
       success: true,
       message: "Attendance updated successfully",
@@ -170,6 +199,7 @@ export const updateAttendanceByEmployee = async (req, res) => {
       message: error.message || "Failed to update attendance",
     });
   }
+
 };
 
 /**

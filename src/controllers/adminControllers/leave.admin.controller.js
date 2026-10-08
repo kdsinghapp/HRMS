@@ -9,10 +9,10 @@ import { notifyUser } from "../../services/notification.service.js";
 // is unrestricted, same as before.
 const isTrueAdmin = (req) => !!req.user?.roles?.includes("admin");
 
-// Ids of every employee who themselves holds the "hr" role — used to
-// exclude/guard their leave requests from the HR-only view.
+// Ids of every employee who themselves holds the "hr" or "admin" role — used to
+// exclude/guard their leave requests from the pure HR-only view.
 const getHrEmployeeIds = async () => {
-  const hrEmployees = await OldEmployee.find({ roles: "hr" }).select("_id");
+  const hrEmployees = await OldEmployee.find({ roles: { $in: ["hr", "admin"] } }).select("_id");
   return hrEmployees.map((e) => String(e._id));
 };
 
@@ -35,9 +35,21 @@ export const getAllLeaves = async (req, res) => {
       .populate({
         path: "employeeId",
         select: {
-          personal: {
-            fullName: 1,
-          },
+          personal: 1,
+          contact: 1,
+          professional: 1,
+        },
+      })
+      .populate({
+        path: "hrApprovedBy",
+        select: {
+          personal: 1,
+        },
+      })
+      .populate({
+        path: "adminApprovedBy",
+        select: {
+          personal: 1,
         },
       })
       .populate({
@@ -53,7 +65,6 @@ export const getAllLeaves = async (req, res) => {
       data: leaves,
     });
   } catch (error) {
-
     res.status(500).json({
       success: false,
       message: "Server Error",
@@ -80,7 +91,32 @@ export const getLeavesByEmployee = async (req, res) => {
       query.dates = { $elemMatch: { $gte: start, $lte: end } };
     }
 
-    const leaves = await Leave.find(query).sort({ createdAt: -1 });
+    const leaves = await Leave.find(query)
+      .populate({
+        path: "employeeId",
+        select: {
+          personal: 1,
+        },
+      })
+      .populate({
+        path: "hrApprovedBy",
+        select: {
+          personal: 1,
+        },
+      })
+      .populate({
+        path: "adminApprovedBy",
+        select: {
+          personal: 1,
+        },
+      })
+      .populate({
+        path: "approvedBy",
+        select: {
+          personal: 1,
+        },
+      })
+      .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: leaves });
   } catch (error) {
@@ -98,12 +134,44 @@ export const filterLeaves = async (req, res) => {
 
     const query = {};
 
-    if (status) {
+    if (status && status !== "ALL") {
       query.status = status.toUpperCase(); // normalize
     }
 
+    if (!isTrueAdmin(req)) {
+      const hrIds = await getHrEmployeeIds();
+      if (hrIds.length > 0) {
+        query.employeeId = { $nin: hrIds };
+      }
+    }
+
     const leaves = await Leave.find(query)
-      .populate("employeeId", "name email")
+      .populate({
+        path: "employeeId",
+        select: {
+          personal: 1,
+          contact: 1,
+          professional: 1,
+        },
+      })
+      .populate({
+        path: "hrApprovedBy",
+        select: {
+          personal: 1,
+        },
+      })
+      .populate({
+        path: "adminApprovedBy",
+        select: {
+          personal: 1,
+        },
+      })
+      .populate({
+        path: "approvedBy",
+        select: {
+          personal: 1,
+        },
+      })
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: leaves });
@@ -122,11 +190,12 @@ export const updateLeaveStatus = async (req, res) => {
     const { status, rejectionReason } = req.body;
 
     const approverId = req.user.id;
+    const isAdmin = isTrueAdmin(req);
 
     if (!["APPROVED", "REJECTED"].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid status",
+        message: "Invalid status. Expected APPROVED or REJECTED.",
       });
     }
 
@@ -139,11 +208,19 @@ export const updateLeaveStatus = async (req, res) => {
       });
     }
 
-    // HR's own leave requests (and any other HR colleague's) are Admin's
-    // call only — a pure HR user can't approve/reject one, even if they
-    // somehow have the leaveId.
-    const isAdmin = isTrueAdmin(req);
+    // Self approval guard
+    if (leave.employeeId.toString() === approverId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot approve your own leave",
+      });
+    }
+
+    const oldData = leave.toObject();
+
+    // Role-specific workflow checks
     if (!isAdmin) {
+      // PURE HR WORKFLOW
       const targetEmployee = await OldEmployee.findById(leave.employeeId).select("roles");
       if (targetEmployee?.roles?.includes("hr")) {
         return res.status(403).json({
@@ -151,56 +228,51 @@ export const updateLeaveStatus = async (req, res) => {
           message: "Only Admin can approve or reject an HR user's leave request.",
         });
       }
-    }
-    
-    if (leave.employeeId.toString() === approverId.toString()) {
-       return res.status(403).json({
-          success: false,
-          message: "You cannot approve your own leave",
-       });
-    }
 
-    if (isAdmin) {
-      if (leave.status !== "PENDING_ADMIN") {
-        return res.status(400).json({
-          success: false,
-          message: "Admin can only process PENDING_ADMIN leaves",
-        });
-      }
-    } else {
       if (leave.status !== "PENDING" && leave.status !== "PENDING_HR") {
         return res.status(400).json({
           success: false,
           message: "HR can only process PENDING_HR leaves",
         });
       }
-    }
 
-    if (status === "APPROVED") {
-      if (!isAdmin) {
+      if (status === "APPROVED") {
+        // HR approval moves leave to PENDING_ADMIN (NOT final approved)
         leave.status = "PENDING_ADMIN";
         leave.hrApprovedBy = approverId;
         leave.hrApprovedAt = new Date();
-      } else {
+      } else if (status === "REJECTED") {
+        leave.status = "REJECTED";
+        leave.rejectionReason = rejectionReason || "";
+        leave.hrApprovedBy = approverId;
+        leave.hrApprovedAt = new Date();
+        leave.approvedBy = approverId;
+        leave.approvedAt = new Date();
+      }
+    } else {
+      // ADMIN WORKFLOW
+      if (leave.status !== "PENDING_ADMIN") {
+        return res.status(400).json({
+          success: false,
+          message: "Admin can only process PENDING_ADMIN leaves. Requests in PENDING_HR require HR approval first.",
+        });
+      }
+
+      if (status === "APPROVED") {
+        // Admin approval is the FINAL approval
         leave.status = "APPROVED";
         leave.adminApprovedBy = approverId;
         leave.adminApprovedAt = new Date();
-      }
-    } else if (status === "REJECTED") {
-      leave.status = "REJECTED";
-      leave.rejectionReason = rejectionReason || "";
-      if (!isAdmin) {
-        leave.hrApprovedBy = approverId;
-        leave.hrApprovedAt = new Date();
-      } else {
+        leave.approvedBy = approverId;
+        leave.approvedAt = new Date();
+      } else if (status === "REJECTED") {
+        leave.status = "REJECTED";
+        leave.rejectionReason = rejectionReason || "";
         leave.adminApprovedBy = approverId;
         leave.adminApprovedAt = new Date();
+        leave.approvedBy = approverId;
+        leave.approvedAt = new Date();
       }
-    }
-
-    if (leave.status === "APPROVED" || leave.status === "REJECTED") {
-      leave.approvedBy = approverId;
-      leave.approvedAt = new Date();
     }
 
     await leave.save();
@@ -211,26 +283,38 @@ export const updateLeaveStatus = async (req, res) => {
       action: "UPDATE",
       module: "LEAVE",
       recordId: leave._id,
-      affectedEmployeeId: leave.employeeId,
-      newData: { status: leave.status, approvedBy: approverId, rejectionReason: leave.rejectionReason },
+      description: `${isAdmin ? "Admin" : "HR"} updated leave status to ${leave.status}`,
+      oldData,
+      newData: leave.toObject(),
       req,
     });
 
-    // Notify employee
+
+    // Notify employee & relevant roles
     let notificationTitle = "";
     let notificationMessage = "";
 
     if (leave.status === "PENDING_ADMIN") {
-      notificationTitle = "Leave Forwarded to Admin";
-      notificationMessage = `Leave approved by HR and forwarded to Admin for final approval.`;
+      notificationTitle = "Leave Approved by HR (Pending Admin)";
+      notificationMessage = `Your ${leave.leaveType} request was approved by HR and forwarded to Admin for final approval.`;
+
+      // Also notify Admin that a leave is waiting for their final approval
+      await notifyUser({
+        recipientId: null, // role-based or general notification
+        title: "Leave Request Waiting for Final Approval",
+        message: `An employee's ${leave.leaveType} was approved by HR and is waiting for Admin final approval.`,
+        type: "LEAVE",
+        link: "/admin/leave",
+        createdBy: approverId,
+      });
     } else if (leave.status === "APPROVED") {
-      notificationTitle = "Leave Approved";
-      notificationMessage = `Your ${leave.leaveType} request has been finally approved.`;
+      notificationTitle = "Leave Approved (Final)";
+      notificationMessage = `Your ${leave.leaveType} request has received final approval from Admin.`;
     } else if (leave.status === "REJECTED") {
       const rejectorRole = isAdmin ? "Admin" : "HR";
-      notificationTitle = "Leave Rejected";
+      notificationTitle = `Leave Rejected by ${rejectorRole}`;
       notificationMessage = `Your ${leave.leaveType} request was rejected by ${rejectorRole}${
-        leave.rejectionReason ? `: ${leave.rejectionReason}` : ""
+        leave.rejectionReason ? `: ${leave.rejectionReason}` : "."
       }`;
     }
 
@@ -306,6 +390,8 @@ export const updateLeaveDetails = async (req, res) => {
       }
     }
 
+    const oldData = leave.toObject();
+
     if (leaveType !== undefined) {
       if (!EDITABLE_LEAVE_TYPES.includes(leaveType)) {
         return res.status(400).json({ success: false, message: "Invalid leave type" });
@@ -370,12 +456,9 @@ export const updateLeaveDetails = async (req, res) => {
       action: "UPDATE",
       module: "LEAVE",
       recordId: leave._id,
-      newData: {
-        leaveType: leave.leaveType,
-        leaveMode: leave.leaveMode,
-        status: leave.status,
-        reason: leave.reason,
-      },
+      description: `HR/Admin modified leave details for ${leave.leaveType}`,
+      oldData,
+      newData: leave.toObject(),
       req,
     });
 
@@ -384,6 +467,7 @@ export const updateLeaveDetails = async (req, res) => {
       message: "Leave updated successfully",
       data: leave,
     });
+
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -569,6 +653,8 @@ export const deleteLeave = async (req, res) => {
       }
     }
 
+    const oldData = leave.toObject();
+
     await leave.deleteOne();
 
     await createAuditLog({
@@ -576,8 +662,12 @@ export const deleteLeave = async (req, res) => {
       action: "DELETE",
       module: "LEAVE",
       recordId: leaveId,
+      description: `Deleted leave record for employee ${leave.employeeId}`,
+      oldData,
+      newData: null,
       req,
     });
+
 
     // No employee notification — same reasoning as the calendar
     // edit/create flows above, this is an HR-internal correction.

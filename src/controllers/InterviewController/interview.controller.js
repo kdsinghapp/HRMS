@@ -4,6 +4,8 @@ import Employee from "../../models/employee.model.js";
 import OldEmployee from './../../models/oldEmployee.model.js';
 import applicationModel from "../../models/application.model.js";
 import CandidateResume from "../../models/candidateResume.model.js";
+import { createAuditLog } from "../../services/audit.service.js";
+
 
 // ROUND ORDER
 const roundOrder = ["HR", "Technical", "Machine Coding", "Director", "Salary Discussion","Document Verification","Joining Form",];
@@ -161,6 +163,17 @@ export const scheduleInterview = async (req, res) => {
       scheduledDate,
     });
 
+    await createAuditLog({
+      user: req.user,
+      action: "CREATE",
+      module: "INTERVIEW",
+      recordId: interview._id,
+      description: `Scheduled ${roundType} interview for candidate on ${new Date(scheduledDate).toLocaleDateString()}`,
+      oldData: null,
+      newData: interview.toObject(),
+      req,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Interview scheduled successfully",
@@ -192,12 +205,25 @@ export const completeInterview = async (req, res) => {
       });
     }
 
+    const oldData = interview.toObject();
+
     interview.status = "completed";
     interview.rating = rating;
     interview.feedback = feedback;
     interview.recommendation = recommendation;
 
     await interview.save();
+
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "INTERVIEW",
+      recordId: interview._id,
+      description: `Completed ${interview.roundType} interview. Decision: ${recommendation}`,
+      oldData,
+      newData: interview.toObject(),
+      req,
+    });
 
     return res.json({
       success: true,
@@ -223,10 +249,23 @@ export const cancelInterview = async (req, res) => {
       return res.status(404).json({ message: "Interview not found" });
     }
 
+    const oldData = interview.toObject();
+
     interview.status = "cancelled";
     interview.cancelledReason = reason;
 
     await interview.save();
+
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "INTERVIEW",
+      recordId: interview._id,
+      description: `Cancelled ${interview.roundType} interview. Reason: ${reason || "N/A"}`,
+      oldData,
+      newData: interview.toObject(),
+      req,
+    });
 
     return res.json({
       success: true,
@@ -240,6 +279,7 @@ export const cancelInterview = async (req, res) => {
     });
   }
 };
+
 
 // 4️⃣ GET CANDIDATE INTERVIEWS
 export const getCandidateInterviews = async (req, res) => {

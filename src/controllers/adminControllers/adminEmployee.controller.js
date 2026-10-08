@@ -80,25 +80,29 @@ export const updateEmployeeByAdmin = async (req, res) => {
       });
     }
 
+    const existingEmployee = await Employee.findById(req.params.id).select("-password");
+    if (!existingEmployee) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+    const oldData = existingEmployee.toObject();
+
     const employee = await Employee.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true },
     ).select("-password");
 
-    if (!employee) {
-      return res.status(404).json({
-        success: false,
-        message: "Employee not found",
-      });
-    }
-
     await createAuditLog({
       user: req.user,
       action: "UPDATE",
       module: "EMPLOYEE",
       recordId: employee._id,
-      newData: updateData,
+      description: `Admin updated employee ${employee.name}`,
+      oldData,
+      newData: employee.toObject(),
       req,
     });
 
@@ -126,6 +130,7 @@ export const toggleEmployeeActiveStatus = async (req, res) => {
         .json({ success: false, message: "Employee not found" });
     }
 
+    const prevActiveState = employee.isActive;
     employee.isActive = !employee.isActive;
     await employee.save();
 
@@ -134,6 +139,8 @@ export const toggleEmployeeActiveStatus = async (req, res) => {
       action: "UPDATE",
       module: "EMPLOYEE",
       recordId: employee._id,
+      description: `Toggled active status for ${employee.name} (${employee.isActive ? "Active" : "Inactive"})`,
+      oldData: { isActive: prevActiveState },
       newData: { isActive: employee.isActive },
       req,
     });
@@ -148,3 +155,4 @@ export const toggleEmployeeActiveStatus = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+

@@ -6,16 +6,16 @@ import OldEmployee from "../src/models/oldEmployee.model.js";
 dotenv.config();
 
 const usersToSeed = [
-  // {
-  //   email: "admin@gmail.com",
-  //   employeeIdCode: "AD001",
-  //   fullName: "System Admin",
-  //   roles: ["admin", "hr", "employee"],
-  // },
+  {
+    email: "admin@gmail.com",
+    employeeIdCode: "ADT26001",
+    fullName: "Admin",
+    roles: ["admin", "hr", "employee"],
+  },
   {
     email: "hr@gmail.com",
-    employeeIdCode: "HR001",
-    fullName: "System HR",
+    employeeIdCode: "HRT26001",
+    fullName: "HR",
     roles: ["hr", "employee"],
   },
 ];

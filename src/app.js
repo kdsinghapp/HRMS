@@ -83,6 +83,7 @@ app.get("/api/health", (req, res) => {
   res.status(200).json({
     success: true,
     status: "UP",
+    message: "Welcome to the Employee Management HRMS System",
     timestamp: new Date().toISOString(),
   });
 });

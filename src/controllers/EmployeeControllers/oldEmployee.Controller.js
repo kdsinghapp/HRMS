@@ -363,26 +363,42 @@ export const updateEmployee = async (req, res) => {
 
     const updateData = flattenObject(nestedBody);
 
-    // Update
+    // Fetch previous state for audit log
+    const existingEmployee = await OldEmployee.findById(req.params.id);
+    if (!existingEmployee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
 
+    const oldData = sanitizeEmployee(existingEmployee);
+
+    // Update
     const updatedEmployee = await OldEmployee.findByIdAndUpdate(
       req.params.id,
       { $set: updateData },
       { new: true, runValidators: true }
     );
 
-    if (!updatedEmployee) {
-      return res.status(404).json({ message: "Employee not found" });
-    }
+    const newData = sanitizeEmployee(updatedEmployee);
+
+    await createAuditLog({
+      user: req.user,
+      action: "UPDATE",
+      module: "EMPLOYEE",
+      recordId: updatedEmployee._id,
+      description: `Updated employee details for ${updatedEmployee.personal?.fullName || updatedEmployee.professional?.employeeId || "Employee"}`,
+      oldData,
+      newData,
+      req,
+    });
 
     res.json({
       message: "Employee updated successfully",
       data: updatedEmployee,
     });
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+
 };
 
 // GET ALL EMPLOYEES (NEW + OLD)
