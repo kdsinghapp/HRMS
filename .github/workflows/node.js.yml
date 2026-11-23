@@ -36,9 +36,6 @@ jobs:
       - name: Install PM2
         run: npm install -g pm2
 
-      - name: Add Node & PM2 to PATH
-        run: echo "/home/nodeteam/.local/share/fnm/node-versions/v22.21.1/installation/bin" >> $GITHUB_PATH
-
       # Restart backend
       - name: Restart backend with PM2
         run: |
